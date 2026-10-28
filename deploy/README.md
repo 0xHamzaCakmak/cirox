@@ -131,3 +131,13 @@ geri dönüş davranışını kontrol eder. Gerçek VPS yayını ayrıca sunucud
 
 Referanslar: [PM2 ecosystem](https://pm2.keymetrics.io/docs/usage/environment/),
 [mysqldump](https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html).
+
+## Projeye ozel Node kurulumu
+
+Sistemdeki diger uygulamalarin Node surumunu degistirmeden kurulan Node icin
+.deploy.env dosyasina su satiri ekleyin:
+
+    export PATH="/opt/cirox-node22/bin:$PATH"
+
+Deploy, npm ve CIROX PM2 interpreter yolu bu Node surumunu kullanir.
+PM2 ecosystem interpreter degeri process.execPath ile mutlak yola sabitlenir.
