@@ -45,7 +45,7 @@ export function createApp() {
     try {
       if (!appDataSource.isInitialized) throw new Error('Database not initialized');
       await appDataSource.query('SELECT 1');
-      res.json({ status: 'ready', database: 'connected' });
+      res.json({ status: 'ready', database: 'connected', release: process.env.CIROX_RELEASE_SHA || null });
     } catch {
       res.status(503).json({ status: 'not_ready', database: 'unavailable' });
     }

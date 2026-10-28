@@ -4,6 +4,11 @@ dist/
 coverage/
 .npm-cache/
 dev-dist/
+.deploy/
+.deploy.lock
+.deploy.env
+.deploy-test.*/
+backend/backups/
 *.tsbuildinfo
 .DS_Store
 *.log

@@ -5,14 +5,14 @@ import { UserEntity } from '../database/entities';
 import { hashPassword } from '../auth/password';
 
 async function seed() {
-  const email = z.string().trim().toLowerCase().email().max(128).parse(process.env.SEED_ADMIN_EMAIL);
-  const password = z.string().min(12).max(256).parse(process.env.SEED_ADMIN_PASSWORD);
   try {
     await appDataSource.initialize();
     if (await appDataSource.getRepository(UserEntity).existsBy({ role: 'admin' })) {
       console.log('Admin zaten mevcut; hesap veya şifre değiştirilmedi.');
       return;
     }
+    const email = z.string().trim().toLowerCase().email().max(128).parse(process.env.SEED_ADMIN_EMAIL);
+    const password = z.string().min(12).max(256).parse(process.env.SEED_ADMIN_PASSWORD);
     await appDataSource.getRepository(UserEntity).insert({
       id: randomUUID(), companyId: null, branchId: null, name: 'Süper Admin',
       email, passwordHash: await hashPassword(password), role: 'admin',

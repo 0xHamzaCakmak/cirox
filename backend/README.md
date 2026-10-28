@@ -311,6 +311,11 @@ dış servise istek atılmaz ve finansal kayıt üretilmez. Gerçek entegrasyon 
 
 ## VPS / PM2
 
+Güncel otomatik kurulum/yayın akışı: [deploy rehberi](../deploy/README.md).
+İlk VPS ayarlarından sonra kök dizinde `bash deploy.sh` Git güncellemesi,
+yedek, tüm TypeORM migration'ları, sürüm hazırlığı ve sağlık kontrollü yayını yürütür.
+Aşağıdaki komutlar tek tek yönetim ihtiyacı için referanstır.
+
 VPS'te aynı backend klasörü ve o sunucuya özel `.env` kullanılır. Yerel `.env`
 ve node_modules sunucuya taşınmaz. Ayrı veritabanı ve ona yetkili kullanıcıyı
 hazırlayıp sunucudaki `.env` içine girin. Alan adı ve TLS/Nginx ayarları sunucuya

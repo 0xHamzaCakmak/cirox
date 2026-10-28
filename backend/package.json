@@ -18,7 +18,8 @@
     "test:auth": "tsx --test src/scripts/auth.integration.test.ts",
     "r2:check": "tsx src/scripts/check-r2.ts",
     "test:revenue": "tsx --test src/scripts/revenue.integration.test.ts",
-    "test:receipts": "tsx --test src/scripts/receipt.test.ts"
+    "test:receipts": "tsx --test src/scripts/receipt.test.ts",
+    "test:deploy-config": "npm run build && node --test dist/scripts/deploy-config.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1109.0",

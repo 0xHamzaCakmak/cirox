@@ -1,20 +1,24 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# CIROX — Şube ve Ciro Yönetimi
 
-# Run and deploy your AI Studio app
+React/Vite frontend ve Express/TypeORM/MySQL backend. Şube ciro, gider, personel,
+raporlama, kullanıcı hesabı ve yetkili R2 fiş arşivi modülleri içerir.
 
-This contains everything you need to run your app locally.
+## VPS'te güncelleme
 
-View your app in AI Studio: https://ai.studio/apps/3f5aa336-8b52-44b0-a0a6-b3f4c7b7e393
+İlk sunucu ayarları tamamlandıktan sonra proje klasöründe:
 
-## Run Locally
+```bash
+bash deploy.sh
+```
 
-**Prerequisites:**  Node.js
+Script GitHub güncellemesi, bağımlılıklar, derleme, DB yedeği, migration,
+PM2 geçişi, sağlık kontrolü ve frontend yayınını yürütür.
 
+**İlk kurulum ve hata/kurtarma ayrıntıları:** [Deploy rehberi](deploy/README.md).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Yerel geliştirme
+
+Node.js 22+ ve MySQL gerekir. Frontend `npm ci` / `npm run dev` ile 3000 portunda
+çalışır. Backend bağlantı ayarları, migration ve ilk admin kurulumu için
+[backend rehberini](backend/README.md) izleyin; `npm --prefix backend run dev`
+API'yi 4002 portunda başlatır. Gizli `.env` dosyaları Git'e dahil edilmez.
