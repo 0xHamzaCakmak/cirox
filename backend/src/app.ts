@@ -63,7 +63,7 @@ export function createApp() {
       res.status(400).json({ error: 'Tek bir fotoğraf seçin.' }); return;
     }
     if (error instanceof HttpError) {
-      res.status(error.status).json({ error: error.message });
+      res.status(error.status).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
       return;
     }
     if (error instanceof ZodError) {

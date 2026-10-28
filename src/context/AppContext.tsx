@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
-import { api, type BootstrapData, type EstablishmentResult } from '../services/api';
+import { api, advanceSessionVersion, type BootstrapData, type EstablishmentResult } from '../services/api';
 import { EMPTY_BRANCH, EMPTY_COMPANY } from '../data/emptyData';
 import { createClientId } from '../services/clientId';
+import { homePage, resolvePageForRole } from '../data/pageAccess';
 import {
   Branch,
   BranchSettings,
@@ -21,16 +22,7 @@ import {
   PlanTier,
   ReceiptAttachment,
 } from '../types';
-import {
-  INITIAL_BRANCHES,
-  INITIAL_DAILY_REVENUE_RECORDS,
-  INITIAL_EXPENSE_CATEGORIES,
-  INITIAL_EXPENSES,
-  INITIAL_STAFF,
-  INITIAL_STAFF_PAYMENTS,
-  INITIAL_COMPANIES,
-  INITIAL_PAYMENTS,
-} from '../data/mockData';
+
 
 interface AppContextType {
   saveBranchSettings: (data: BranchSettings) => Promise<void>;
@@ -99,7 +91,6 @@ interface AppContextType {
   chargeCompany: (companyId: string, amount: number, method: BillingMethod, notes?: string) => void;
 
   // Actions
-  loginAs: (role: UserRole, branchId?: string, companyId?: string) => void;
   logout: () => void;
   setActiveTab: (tab: PageTab) => void;
   setSelectedBranchId: (id: string) => void;
@@ -122,9 +113,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Companies / Tenants State
-  const [companies, setCompanies] = useState<Company[]>(INITIAL_COMPANIES);
-  const [activeCompanyId, setActiveCompanyIdState] = useState<string>('comp-5'); // Default to O YER CAFE to immediately see the requested screen context
-  const [payments, setPayments] = useState<PaymentRecord[]>(INITIAL_PAYMENTS);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [activeCompanyId, setActiveCompanyIdState] = useState<string>('');
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
   const activeCompany = useMemo(() => {
     return companies.find((c) => c.id === activeCompanyId) || companies[0] || EMPTY_COMPANY;
@@ -137,58 +128,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sessionMode = useRef<'none' | 'demo' | 'live'>('none');
   const authEpoch = useRef(0);
 
-  const [registeredUsers, setRegisteredUsers] = useState<User[]>([
-    {
-      id: 'user-admin-1',
-      name: 'Süper Admin (Sistem Sahibi)',
-      email: 'admin@subeanalitik.com',
-      password: 'admin',
-      phone: '0532 555 1020',
-      role: 'admin',
-      title: 'Süper Admin & Lisans Yönetim Direktörü',
-      companyId: 'comp-5',
-      companyName: 'O YER CAFE',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'user-merkez-oyer',
-      name: 'Serdar Yer',
-      email: 'serdar@oyercafe.com',
-      password: '123',
-      phone: '0532 714 73 46',
-      role: 'merkez',
-      title: 'O YER CAFE Merkez Yöneticisi',
-      companyId: 'comp-5',
-      companyName: 'O YER CAFE',
-    },
-    {
-      id: 'user-sariyer-merkez',
-      name: 'Sarıyer Börekçisi Merkez',
-      email: 'merkez@sariyerborekcisi.com',
-      password: '123',
-      phone: '0532 999 88 77',
-      role: 'merkez',
-      title: 'Sarıyer Börekçisi Genel Merkez',
-      companyId: 'comp-sariyer',
-      companyName: 'Sarıyer Börekçisi',
-    },
-    {
-      id: 'user-sariyer-savci',
-      name: 'Savcı Usta',
-      email: 'savci@sariyerborekcisi.com',
-      password: '123',
-      phone: '0532 999 88 77',
-      role: 'sube',
-      branchId: 'branch-comp-sariyer-1',
-      branchName: 'Savcı Usta Şubesi',
-      companyId: 'comp-sariyer',
-      companyName: 'Sarıyer Börekçisi',
-      title: 'Savcı Usta Şube Sorumlusu',
-    },
-  ]);
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
 
-  const [activeTab, setActiveTab] = useState<PageTab>('admin_tenants');
-  const [allBranches, setAllBranches] = useState<Branch[]>(INITIAL_BRANCHES);
+  const [activeTab, setActiveTabState] = useState<PageTab>('admin_tenants');
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
   
   // Scoped branches for currently active center / company
   const branches = useMemo(() => {
@@ -197,12 +140,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return list;
   }, [allBranches, activeCompanyId, currentUser?.role]);
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('branch-comp-5-1');
-  const [allDailyRevenueRecords, setAllDailyRevenueRecords] = useState<DailyRevenueRecord[]>(INITIAL_DAILY_REVENUE_RECORDS);
-  const [allExpenses, setAllExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
-  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>(INITIAL_EXPENSE_CATEGORIES);
-  const [allStaff, setAllStaff] = useState<Staff[]>(INITIAL_STAFF);
-  const [staffPayments, setStaffPayments] = useState<StaffPaymentHistory[]>(INITIAL_STAFF_PAYMENTS);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [allDailyRevenueRecords, setAllDailyRevenueRecords] = useState<DailyRevenueRecord[]>([]);
+  const [allExpenses, setAllExpenses] = useState<ExpenseRecord[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [allStaff, setAllStaff] = useState<Staff[]>([]);
+  const [staffPayments, setStaffPayments] = useState<StaffPaymentHistory[]>([]);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
 
   // Scoped data items
@@ -257,68 +200,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showNotification(`Aktif Merkez: "${targetComp.name}" seçildi (${targetBranches.length} Şube/Birim)`, 'info');
   };
 
-  const loginAs = (role: UserRole, branchId?: string, companyId?: string) => {
-    if (sessionMode.current === 'live') {
-      showNotification('Başka bir kullanıcıya geçmek için çıkış yapıp o hesabın bilgileriyle giriş yapın.', 'info');
-      return;
-    }
-    ++authEpoch.current;
-    sessionMode.current = 'demo';
-    const targetCompany = (companyId ? companies.find((c) => c.id === companyId) : activeCompany) || companies[0];
-
-    if (role === 'admin') {
-      const adminUser: User = {
-        id: 'user-admin-1',
-        name: 'Süper Admin (Sistem Sahibi)',
-        email: 'admin@subeanalitik.com',
-        role: 'admin',
-        title: 'Süper Admin & Lisans Direktörü',
-        companyId: targetCompany.id,
-        companyName: targetCompany.name,
-      };
-      setCurrentUser(adminUser);
-      setActiveTab('admin_tenants');
-      showNotification('Süper Admin (Sistem Sahibi) yetkileriyle giriş yapıldı', 'info');
-    } else if (role === 'merkez') {
-      const merkezUser: User = {
-        id: `user-merkez-${targetCompany.id}`,
-        name: targetCompany.ownerName || `${targetCompany.name} Merkez`,
-        email: targetCompany.ownerEmail || 'merkez@subeanalitik.com',
-        role: 'merkez',
-        title: `${targetCompany.name} Operasyon & Finans Direktörü`,
-        companyId: targetCompany.id,
-        companyName: targetCompany.name,
-      };
-      setCurrentUser(merkezUser);
-      setActiveTab('dashboard');
-      showNotification(`${targetCompany.name} Merkez Yöneticisi olarak giriş yapıldı`, 'info');
-    } else {
-      const bId = branchId || (branches[0] ? branches[0].id : allBranches[0]?.id);
-      const branch = allBranches.find((b) => b.id === bId) || branches[0] || allBranches[0];
-      if (branch) {
-        setSelectedBranchId(branch.id);
-        const comp = companies.find((c) => c.id === branch.companyId) || targetCompany;
-        setActiveCompanyIdState(comp.id);
-        const subeUser: User = {
-          id: `user-sube-${branch.id}`,
-          name: branch.managerName,
-          email: branch.loginEmail || `${branch.code.toLowerCase()}@subeanalitik.com`,
-          role: 'sube',
-          branchId: branch.id,
-          branchName: branch.name,
-          companyId: comp.id,
-          companyName: comp.name,
-          title: `${branch.name} Sorumlusu`,
-          phone: branch.phone,
-        };
-        setCurrentUser(subeUser);
-        setActiveTab('revenue_entry');
-        showNotification(`${branch.name} (${comp.name}) İşletme Kullanıcısı olarak giriş yapıldı`, 'info');
-      }
-    }
+  const setActiveTab = (tab: PageTab) => {
+    if (sessionMode.current !== 'live' || !currentUser) return;
+    const allowed = resolvePageForRole(currentUser.role, tab);
+    if (allowed) setActiveTabState(allowed);
   };
 
   const applyBootstrap = (data: BootstrapData) => {
+    advanceSessionVersion();
     sessionMode.current = 'live';
     setCompanies(data.companies);
     setAllBranches(data.branches);
@@ -332,7 +221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setExpenseCategories(data.expenseCategories ?? []);
     setRegisteredUsers([]);
     setCurrentUser(data.user);
-    setActiveTab(data.user.role === 'admin' ? 'admin_tenants' : data.user.role === 'merkez' ? 'dashboard' : 'revenue_entry');
+    setActiveTabState(homePage(data.user.role));
   };
 
   useEffect(() => {
@@ -345,8 +234,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const expire = () => {
+      if (sessionMode.current !== 'live') return;
+      ++authEpoch.current; advanceSessionVersion(); sessionMode.current = 'none';
+      setCurrentUser(null); setCompanies([]); setAllBranches([]); setAllDailyRevenueRecords([]);
+      setAllExpenses([]); setAllStaff([]); setStaffPayments([]); setPayments([]); setExpenseCategories([]); setRegisteredUsers([]);
+      setActiveCompanyIdState(''); setSelectedBranchId('');
+    };
+    window.addEventListener('cirox:session-expired', expire);
+    const resume = (event: PageTransitionEvent) => {
+      if (!event.persisted || sessionMode.current !== 'live') return;
+      const epoch = ++authEpoch.current;
+      advanceSessionVersion();
+      setCurrentUser(null);
+      void api<BootstrapData>('/auth/me').then(data => {
+        if (epoch === authEpoch.current) applyBootstrap(data);
+      }).catch(() => { if (epoch === authEpoch.current) expire(); });
+    };
+    window.addEventListener('pageshow', resume);
+    return () => { window.removeEventListener('cirox:session-expired', expire); window.removeEventListener('pageshow', resume); };
+  }, []);
+
   const loginWithCredentials = async (email: string, password = ''): Promise<boolean> => {
     const epoch = ++authEpoch.current;
+    advanceSessionVersion();
     const data = await api<BootstrapData>('/auth/login', { identifier: email, password });
     if (epoch !== authEpoch.current) return false;
     applyBootstrap(data);
@@ -356,22 +268,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = async () => {
     ++authEpoch.current;
+    advanceSessionVersion();
     if (sessionMode.current === 'live') {
       try { await api('/auth/logout', {}); }
       catch (error) { showNotification(error instanceof Error ? error.message : 'Çıkış yapılamadı.', 'warning'); return; }
     }
     sessionMode.current = 'none';
     setCurrentUser(null);
-    setCompanies(INITIAL_COMPANIES);
-    setAllBranches(INITIAL_BRANCHES);
-    setActiveCompanyIdState('comp-5');
-    setSelectedBranchId('branch-comp-5-1');
-    setAllDailyRevenueRecords(INITIAL_DAILY_REVENUE_RECORDS);
-    setAllExpenses(INITIAL_EXPENSES);
-    setAllStaff(INITIAL_STAFF);
-    setStaffPayments(INITIAL_STAFF_PAYMENTS);
-    setPayments(INITIAL_PAYMENTS);
-    setExpenseCategories(INITIAL_EXPENSE_CATEGORIES);
+    setRegisteredUsers([]);
+    setCompanies([]);
+    setAllBranches([]);
+    setActiveCompanyIdState('');
+    setSelectedBranchId('');
+    setAllDailyRevenueRecords([]);
+    setAllExpenses([]);
+    setAllStaff([]);
+    setStaffPayments([]);
+    setPayments([]);
+    setExpenseCategories([]);
   };
 
   const switchPerspective = (role: UserRole, branchId?: string, companyId?: string) => {
@@ -381,7 +295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveTab(role === 'admin' ? 'admin_tenants' : role === 'merkez' ? 'dashboard' : 'branch_detail');
       return;
     }
-    loginAs(role, branchId, companyId);
+    showNotification('Başka bir hesaba erişmek için o hesabın bilgileriyle giriş yapın.', 'info');
   };
 
   // Company / Tenant Actions
@@ -824,18 +738,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (sessionMode.current !== 'live' || !currentUser) return;
     let disposed = false, refreshing = false;
-    const epoch = authEpoch.current;
     const refresh = async () => {
       if (refreshing || document.visibilityState === 'hidden') return;
+      const epoch = authEpoch.current;
       refreshing = true;
       try {
         const data = await api<BootstrapData>('/auth/me');
-        if (!disposed && authEpoch.current === epoch) applyOperationalData(data);
+        if (!disposed && authEpoch.current === epoch) {
+          applyOperationalData(data); setCurrentUser(data.user); setCompanies(data.companies);
+          if (data.user.role !== 'admin') {
+            setActiveCompanyIdState(data.user.companyId || ''); setRegisteredUsers([]);
+          }
+          setSelectedBranchId(previous => data.user.branchId || (data.branches.some(branch => branch.id === previous) ? previous : data.branches[0]?.id || ''));
+          setActiveTabState(previous => resolvePageForRole(data.user.role, previous) || homePage(data.user.role));
+        }
       } catch { /* Keep current records if the network is temporarily unavailable. */ }
       finally { refreshing = false; }
     };
     window.addEventListener('focus', refresh);
-    return () => { disposed = true; window.removeEventListener('focus', refresh); };
+    document.addEventListener('visibilitychange', refresh);
+    return () => { disposed = true; window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
   }, [currentUser?.id]);
   const addExpense = async (data: Omit<ExpenseRecord, 'id' | 'createdAt'>) => {
     if (sessionMode.current === 'live') {
@@ -1043,7 +965,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sessionMode.current === 'live') {
       const epoch = authEpoch.current;
       const result = await api<{ bootstrap: BootstrapData }>('/settings/profile', data);
-      if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('Kullanıcı bilgileriniz güncellendi.', 'success'); }
+      if (epoch === authEpoch.current) {
+        ++authEpoch.current; advanceSessionVersion();
+        applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('Kullanıcı bilgileriniz güncellendi.', 'success');
+      }
       return;
     }
     setCurrentUser(prev => prev ? { ...prev, name: data.name, username: data.username, email: data.email, phone: data.phone } : prev);
@@ -1055,7 +980,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveBranchSettings,
         saveOwnProfile,
         currentUser,
-        isLoggedIn: !!currentUser,
+        isLoggedIn: !!currentUser && sessionMode.current === 'live',
         branches,
         selectedBranchId,
         selectedBranch,
@@ -1078,7 +1003,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleCompanyStatus,
         updateCompanySubscription,
         chargeCompany,
-        loginAs,
         logout,
         setActiveTab,
         setSelectedBranchId,

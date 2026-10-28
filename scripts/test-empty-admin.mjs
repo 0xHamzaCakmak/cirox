@@ -16,11 +16,14 @@ const bundle = await build({
       export {calculateWages} from './src/data/staffWages';
       export {financialReport, reportRange} from './src/data/financialReports';
       export {branchOverview} from './src/data/branchOverview';
+      export {resolvePageForRole, homePage} from './src/data/pageAccess';
+      export {api, ApiError, advanceSessionVersion} from './src/services/api';
       export {createClientId} from './src/services/clientId';`,
     resolveDir: process.cwd(), loader: 'tsx',
   },
   bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false,
   jsx: 'automatic',
+  define: { 'import.meta.env.VITE_API_BASE_URL': '""' },
   plugins: [{
     name: 'empty-admin-context',
     setup(pluginBuild) {
@@ -67,9 +70,10 @@ const requireForRender = id => {
   return { ...actual, jsx: capture(actual.jsx), jsxs: capture(actual.jsxs) };
 };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(requireForRender, compiled, compiled.exports);
-const { App, AdminTenantsPage, MobileBranchActionModal, EMPTY_BRANCH, EMPTY_COMPANY, expenseTotals, createClientId, calculateWages, financialReport, reportRange, branchOverview } = compiled.exports;
+const { App, AdminTenantsPage, MobileBranchActionModal, EMPTY_BRANCH, EMPTY_COMPANY, expenseTotals, createClientId, calculateWages, financialReport, reportRange, branchOverview, resolvePageForRole, homePage, api, ApiError, advanceSessionVersion } = compiled.exports;
 const state = {
   currentUser: { id: 'test-admin', name: 'Admin', email: 'admin@example.test', role: 'admin', title: 'Admin' },
+  isLoggedIn: true,
   companies: [], branches: [], activeCompanyId: '', selectedBranchId: '',
   activeCompany: EMPTY_COMPANY, selectedBranch: EMPTY_BRANCH,
   dailyRevenueRecords: [], expenses: [], expenseCategories: [], staffList: [], staffPayments: [],
@@ -338,6 +342,54 @@ try {
   assert.ok(noMovements.includes('Seçilen tarihte ciro veya gider kaydı bulunmuyor.'));
   delete globalThis.__ciroxOverviewTab;
   console.log('PASS: branch/day scoped summary, active staff, actual payments, no fabricated transactions and full-page quick-action navigation');
+  assert.equal(resolvePageForRole(null, 'admin_tenants'), null);
+  assert.equal(resolvePageForRole('unknown', 'dashboard'), null);
+  assert.equal(resolvePageForRole('sube', 'admin_tenants'), 'revenue_entry');
+  assert.equal(resolvePageForRole('merkez', 'admin_billing'), 'dashboard');
+  assert.equal(resolvePageForRole('merkez', 'expense_new'), 'dashboard');
+  assert.equal(resolvePageForRole('sube', 'expense_new'), 'expense_new');
+  assert.equal(resolvePageForRole('admin', 'admin_tenants'), 'admin_tenants');
+  assert.equal(homePage('merkez'), 'dashboard');
+  state.activeTab = 'admin_tenants';
+  const blockedAdmin = renderToString(React.createElement(App));
+  assert.ok(blockedAdmin.includes('Günlük Ciro Giriş Formu') && !blockedAdmin.includes('Yeni İşletme / Lisans Ekle'));
+  state.isLoggedIn = false;
+  for (const activeTab of ['admin_tenants', 'dashboard', 'revenue_entry', 'expenses', 'staff', 'reports', 'settings']) {
+    state.activeTab = activeTab;
+    const denied = renderToString(React.createElement(App));
+    assert.ok(denied.includes('Kullanıcı Adı veya E-posta') && !denied.includes('app-shell'));
+    assert.ok(denied.includes('CIROX logosu') && !denied.includes('Demo Merkez') && !denied.includes('Hızlı Demo') && !denied.includes('ŞA'));
+  }
+  console.log('PASS: all protected pages require a verified session; role-only navigation and login without demo access');
+  const previousFetch = globalThis.fetch, previousWindow = globalThis.window;
+  let expiredEvents = 0;
+  try {
+    globalThis.window = { dispatchEvent(event) { if (event.type === 'cirox:session-expired') expiredEvents++; } };
+    const respond = (status, body) => { globalThis.fetch = async () => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }); };
+    respond(401, { error: 'Session missing', code: 'AUTH_REQUIRED' });
+    await assert.rejects(() => api('/auth/me'), error => error instanceof ApiError && error.status === 401);
+    assert.equal(expiredEvents, 1);
+    respond(403, { error: 'Account disabled', code: 'AUTH_REVOKED' });
+    await assert.rejects(() => api('/auth/me')); assert.equal(expiredEvents, 2);
+    respond(401, { error: 'Mevcut şifre hatalı.' });
+    await assert.rejects(() => api('/settings/profile', {})); assert.equal(expiredEvents, 2, 'wrong current password must not expire a valid session');
+    respond(403, { error: 'Insufficient role' });
+    await assert.rejects(() => api('/admin/tenants')); assert.equal(expiredEvents, 2);
+    let completeOldRequest;
+    globalThis.fetch = () => new Promise(resolve => { completeOldRequest = resolve; });
+    const staleRequest = api('/auth/me');
+    advanceSessionVersion();
+    completeOldRequest(new Response(JSON.stringify({ error: 'Old session', code: 'AUTH_REQUIRED' }), { status: 401 }));
+    await assert.rejects(() => staleRequest); assert.equal(expiredEvents, 2, 'a delayed old-session response must not invalidate a new login');
+  } finally { globalThis.fetch = previousFetch; if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow; }
+  console.log('PASS: session-required/revoked API responses invalidate the UI; credential and permission errors preserve the session');
+  const realBundle = await build({ entryPoints: ['src/App.tsx'], bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false, jsx: 'automatic', define: { 'import.meta.env.VITE_API_BASE_URL': '""' } });
+  const realModule = { exports: {} };
+  new Function('require', 'module', 'exports', realBundle.outputFiles[0].text)(localRequire, realModule, realModule.exports);
+  const realLogin = renderToString(React.createElement(realModule.exports.default));
+  assert.ok(realLogin.includes('CIROX logosu') && realLogin.includes('Kullanıcı Adı veya E-posta'));
+  assert.ok(!realLogin.includes('app-shell') && !realLogin.includes('Demo Merkez') && !realLogin.includes('Hızlı Demo'));
+  console.log('PASS: real provider starts logged out with empty account data and credential-only login');
   state.currentUser = null;
   const loginHtml = renderToString(React.createElement(App));
   assert.ok(loginHtml.includes('Kullanıcı Adı veya E-posta'));

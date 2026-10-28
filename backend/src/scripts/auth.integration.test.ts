@@ -190,7 +190,8 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     const expiryLogin = await request('/auth/login', { email: fixture('A').ownerEmail, password });
     const expiryCookie = expiryLogin.headers.get('set-cookie')!.split(';')[0];
     await appDataSource.getRepository(SessionEntity).update({ userId: created.userId }, { expiresAt: new Date(Date.now() - 1000) });
-    assert.equal((await request('/auth/me', undefined, expiryCookie)).status, 401);
+    const expiredResponse = await request('/auth/me', undefined, expiryCookie);
+    assert.equal(expiredResponse.status, 401); assert.equal((await expiredResponse.json()).code, 'AUTH_REQUIRED');
     const settings = { legalName: 'Test İşletme Unvanı', tradeRegisterNo: 'TEST-123', taxOffice: 'Test Vergi Dairesi', taxNumber: '1234567890', contactEmail: 'contact@example.test', phone: '05321234567' };
     assert.equal((await request('/settings/business', settings)).status, 401);
     assert.equal((await request('/settings/business', settings, centerCookie)).status, 403);
@@ -202,7 +203,8 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     assert.equal((await reloadedSettings.json()).branches[0].contactEmail, settings.contactEmail);
     assert.equal((await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: second.branchId })).legalName, '');
     const profile = { name: 'Updated Owner', username: 'owner_' + tag, email: 'updated-' + tag + '@example.test', phone: '05329876543', currentPassword: password };
-    assert.equal((await request('/settings/profile', { ...profile, currentPassword: 'wrong-password' }, independentCookie)).status, 401);
+    const wrongCurrentPassword = await request('/settings/profile', { ...profile, currentPassword: 'wrong-password' }, independentCookie);
+    assert.equal(wrongCurrentPassword.status, 401); assert.equal((await wrongCurrentPassword.json()).code, undefined);
     assert.equal((await request('/settings/profile', { ...profile, role: 'admin' }, independentCookie)).status, 400);
     assert.equal((await request('/settings/profile', { ...profile, email: fixture('A').ownerEmail }, independentCookie)).status, 409);
     const updatedProfile = await request('/settings/profile', profile, independentCookie); assert.equal(updatedProfile.status, 200);

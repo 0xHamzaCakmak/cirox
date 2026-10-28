@@ -29,20 +29,20 @@ export async function createSession(user: UserRow, req: Request, res: Response) 
   res.cookie(cookieName, token, { ...cookieOptions, maxAge });
 }
 export async function assertActive(user: UserRow) {
-  if (!user.active) throw new HttpError(403, 'Kullanıcı hesabı pasif.');
+  if (!user.active) throw new HttpError(403, 'Kullanıcı hesabı pasif.', 'AUTH_REVOKED');
   if (user.role === 'admin') return;
   const company = user.companyId ? await appDataSource.getRepository(CompanyEntity).findOneBy({ id: user.companyId }) : null;
-  if (!company || company.status === 'passive') throw new HttpError(403, 'İşletme hesabı kullanıma kapalı.');
+  if (!company || company.status === 'passive') throw new HttpError(403, 'İşletme hesabı kullanıma kapalı.', 'AUTH_REVOKED');
   if (user.role === 'sube') {
     const branch = user.branchId ? await appDataSource.getRepository(BranchEntity).findOneBy({ id: user.branchId, companyId: company.id }) : null;
-    if (!branch || branch.status === 'passive') throw new HttpError(403, 'Şube hesabı kullanıma kapalı.');
+    if (!branch || branch.status === 'passive') throw new HttpError(403, 'Şube hesabı kullanıma kapalı.', 'AUTH_REVOKED');
   }
 }
 export const requireAuth = asyncRoute(async (req, res, next) => {
   const token = readToken(req);
   const session = token ? await appDataSource.getRepository(SessionEntity).findOneBy({ id: tokenHash(token), expiresAt: MoreThan(new Date()) }) : null;
   const user = session ? await appDataSource.getRepository(UserEntity).findOneBy({ id: session.userId }) : null;
-  if (!user) throw new HttpError(401, 'Oturum açmanız gerekiyor.');
+  if (!user) throw new HttpError(401, 'Oturum açmanız gerekiyor.', 'AUTH_REQUIRED');
   await assertActive(user);
   res.locals.user = user;
   next();

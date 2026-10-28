@@ -311,6 +311,13 @@ dış servise istek atılmaz ve finansal kayıt üretilmez. Gerçek entegrasyon 
 
 ## VPS / PM2
 
+Login ekranında demo veya şifresiz rol girişi bulunmaz. Frontend açılışta
+`/auth/me` ile oturumu doğrular; erişilebilir sayfalar sunucudan gelen role
+göre belirlenir. `AUTH_REQUIRED`/`AUTH_REVOKED` yanıtları istemcide oturumu ve
+yüklenmiş hesap verilerini temizler. Gecikmiş eski oturum yanıtları yeni bir
+girişi kapatmaz. API'deki oturum, rol ve şube yetkisi kontrolleri ayrıca korunur;
+frontend kontrolü API yetkilendirmesinin yerine geçmez.
+
 Güncel otomatik kurulum/yayın akışı: [deploy rehberi](../deploy/README.md).
 İlk VPS ayarlarından sonra kök dizinde `bash deploy.sh` Git güncellemesi,
 yedek, tüm TypeORM migration'ları, sürüm hazırlığı ve sağlık kontrollü yayını yürütür.

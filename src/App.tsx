@@ -18,18 +18,20 @@ import { ReportsPage } from './components/pages/ReportsPage';
 import { SettingsPage } from './components/pages/SettingsPage';
 import { AdminTenantsPage } from './components/pages/AdminTenantsPage';
 import { AdminBillingPage } from './components/pages/AdminBillingPage';
+import { resolvePageForRole } from './data/pageAccess';
 
 const AppContent: React.FC = () => {
-  const { currentUser, activeTab } = useApp();
+  const { currentUser, activeTab, isLoggedIn } = useApp();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // If user is not logged in, show Login view
-  if (!currentUser) {
+  const allowedTab = isLoggedIn ? resolvePageForRole(currentUser?.role, activeTab) : null;
+  if (!currentUser || !allowedTab) {
     return <LoginPage />;
   }
 
   const renderActivePage = () => {
-    switch (activeTab) {
+    switch (allowedTab) {
       case 'admin_tenants':
         return <AdminTenantsPage key="admin_tenants" />;
       case 'admin_billing':
@@ -62,7 +64,7 @@ const AppContent: React.FC = () => {
       case 'settings':
         return <SettingsPage />;
       default:
-        return <DashboardPage />;
+        return <LoginPage />;
     }
   };
 
