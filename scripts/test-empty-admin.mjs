@@ -125,6 +125,59 @@ try {
   assert.ok(branchHtml.includes('revenue-entry'));
   assert.ok(branchHtml.includes('Gider Kalemleri'));
   console.log('PASS: CIROX branch identity, photo controls and decimal revenue form');
+
+  // Exercise the real theme button, persisted preference and role boundaries.
+  const previousThemeWindow = globalThis.window;
+  try {
+    const themeStorage = new Map();
+    globalThis.window = { localStorage: {
+      getItem: key => themeStorage.get(key) ?? null,
+      setItem: (key, value) => themeStorage.set(key, value),
+    } };
+    const renderTheme = () => {
+      globalThis.__ciroxOverviewButtons = [];
+      return renderToString(React.createElement(App));
+    };
+    let themeHtml = renderTheme();
+    assert.ok(themeHtml.includes('data-theme="dark"'));
+    assert.ok(!themeHtml.includes('Perspektif:'));
+    let themeButton = globalThis.__ciroxOverviewButtons.find(b => b['aria-label'] === 'Gündüz moduna geç');
+    assert.ok(themeButton);
+    themeButton.onClick();
+    assert.equal(themeStorage.get('cirox:branch-theme'), 'light');
+    for (const tab of ['dashboard', 'revenue_entry', 'expenses', 'expense_new', 'expense_categories', 'staff', 'reports', 'settings']) {
+      state.activeTab = tab;
+      themeHtml = renderTheme();
+      assert.ok(themeHtml.includes('data-theme="light"'), tab);
+      assert.ok(!themeHtml.includes('Perspektif:'));
+    }
+    globalThis.__ciroxOverviewButtons.find(b => b['aria-label'] === 'Gece moduna geç').onClick();
+    assert.equal(themeStorage.get('cirox:branch-theme'), 'dark');
+    themeStorage.set('cirox:branch-theme', 'light');
+    const ownerUser = state.currentUser;
+    for (const role of ['admin', 'merkez']) {
+      state.currentUser = { ...ownerUser, role };
+      state.activeTab = 'settings';
+      themeHtml = renderTheme();
+      assert.ok(themeHtml.includes('data-theme="dark"'));
+      assert.ok(themeHtml.includes('Perspektif:'));
+      assert.ok(!globalThis.__ciroxOverviewButtons.some(b => b['aria-label'] === 'Gece moduna geç'));
+    }
+    state.currentUser = ownerUser;
+    themeStorage.set('cirox:branch-theme', 'invalid');
+    assert.ok(renderTheme().includes('data-theme="dark"'));
+    globalThis.window.localStorage.getItem = () => { throw new Error('Storage blocked'); };
+    globalThis.window.localStorage.setItem = () => { throw new Error('Storage blocked'); };
+    assert.ok(renderTheme().includes('data-theme="dark"'));
+    assert.doesNotThrow(() => globalThis.__ciroxOverviewButtons.find(b => b['aria-label'] === 'Gündüz moduna geç').onClick());
+    state.activeTab = 'revenue_entry';
+    console.log('PASS: branch theme toggle persists, covers all pages, tolerates blocked storage and leaves admin/center dark');
+  } finally {
+    if (previousThemeWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousThemeWindow;
+    delete globalThis.__ciroxOverviewButtons;
+  }
+
   for (const activeTab of ['expense_new', 'expense_camera', 'expense_accounting']) {
     state.activeTab = activeTab;
     const fullPage = renderToString(React.createElement(App));
@@ -381,7 +434,7 @@ try {
     advanceSessionVersion();
     completeOldRequest(new Response(JSON.stringify({ error: 'Old session', code: 'AUTH_REQUIRED' }), { status: 401 }));
     await assert.rejects(() => staleRequest); assert.equal(expiredEvents, 2, 'a delayed old-session response must not invalidate a new login');
-  } finally { globalThis.fetch = previousFetch; if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow; }
+  } finally { globalThis.fetch = previousFetch; if (previousThemeWindow === undefined) delete globalThis.window; else globalThis.window = previousThemeWindow; }
   console.log('PASS: session-required/revoked API responses invalidate the UI; credential and permission errors preserve the session');
   const realBundle = await build({ entryPoints: ['src/App.tsx'], bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false, jsx: 'automatic', define: { 'import.meta.env.VITE_API_BASE_URL': '""' } });
   const realModule = { exports: {} };

@@ -65,13 +65,13 @@ export const TrendLineChart: React.FC<{
                 y1={y}
                 x2={width - paddingRight}
                 y2={y}
-                stroke="#27272a"
+                stroke="var(--chart-track, #27272a)"
                 strokeDasharray="4 4"
               />
               <text
                 x={paddingLeft - 8}
                 y={y + 3}
-                fill="#71717a"
+                fill="var(--chart-muted, #71717a)"
                 fontSize="10"
                 textAnchor="end"
                 className="font-mono"
@@ -141,7 +141,7 @@ export const TrendLineChart: React.FC<{
                 cy={getY(d.revenue)}
                 r={isHovered ? 5 : 3.5}
                 fill="#10b981"
-                stroke="#09090b"
+                stroke="var(--chart-surface, #09090b)"
                 strokeWidth="2"
                 className="transition-all duration-150"
               />
@@ -152,7 +152,7 @@ export const TrendLineChart: React.FC<{
                 cy={getY(d.expense)}
                 r={isHovered ? 4.5 : 3}
                 fill="#f43f5e"
-                stroke="#09090b"
+                stroke="var(--chart-surface, #09090b)"
                 strokeWidth="2"
                 className="transition-all duration-150"
               />
@@ -161,7 +161,7 @@ export const TrendLineChart: React.FC<{
               <text
                 x={x}
                 y={height - 10}
-                fill={isHovered ? '#f4f4f5' : '#71717a'}
+                fill={isHovered ? 'var(--chart-text, #f4f4f5)' : 'var(--chart-muted, #71717a)'}
                 fontSize="10"
                 textAnchor="middle"
                 className="transition-colors duration-150"
@@ -255,7 +255,7 @@ export const DonutBreakdownChart: React.FC<{
             cy="80"
             r={radius}
             fill="transparent"
-            stroke="#27272a"
+            stroke="var(--chart-track, #27272a)"
             strokeWidth={strokeWidth}
           />
 

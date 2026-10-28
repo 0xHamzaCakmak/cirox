@@ -58,3 +58,44 @@
   .money-cell { padding: 10px; }
   .revenue-form .receipt-capture > div:first-child { padding: 8px 10px; }
 }
+
+/* Scoped to the authenticated shell: admin, center and login stay dark. */
+.app-shell { color-scheme: dark; }
+@media screen {
+  .app-shell[data-theme="light"] {
+    color-scheme: light;
+    --color-zinc-50: #020617;
+    --color-zinc-100: #0f172a;
+    --color-zinc-200: #1e293b;
+    --color-zinc-300: #334155;
+    --color-zinc-400: #475569;
+    --color-zinc-500: #64748b;
+    --color-zinc-600: #94a3b8;
+    --color-zinc-700: #cbd5e1;
+    --color-zinc-800: #e2e8f0;
+    --color-zinc-900: #f1f5f9;
+    --color-zinc-950: #ffffff;
+    --chart-track: #e2e8f0;
+    --chart-muted: #64748b;
+    --chart-text: #0f172a;
+    --chart-surface: #ffffff;
+  }
+  /* Filled action buttons keep their dark lettering in both themes. */
+  .app-shell[data-theme="light"] .text-zinc-950,
+  .app-shell[data-theme="light"] .text-zinc-900 { color: #09090b; }
+  .app-shell[data-theme="light"] .expense-actions { background: #f1f5f9; }
+  .app-shell[data-theme="light"] :is([class~="text-emerald-300"], [class~="text-emerald-400"], [class~="text-emerald-500"], [class*="text-emerald-400/"]) { color: #047857; }
+  .app-shell[data-theme="light"] :is([class~="text-rose-300"], [class~="text-rose-400"], [class~="text-rose-500"], [class*="text-rose-400/"]) { color: #be123c; }
+  .app-shell[data-theme="light"] :is([class~="text-amber-300"], [class~="text-amber-400"], [class~="text-amber-500"], [class*="text-amber-400/"]) { color: #92400e; }
+  .app-shell[data-theme="light"] :is([class~="text-indigo-300"], [class~="text-indigo-400"], [class~="text-indigo-500"], [class*="text-indigo-400/"]) { color: #4338ca; }
+  .app-shell[data-theme="light"] :is([class~="text-cyan-300"], [class~="text-cyan-400"], [class~="text-cyan-500"], [class*="text-cyan-400/"]) { color: #0e7490; }
+  .app-shell[data-theme="light"] :is([class~="text-sky-300"], [class~="text-sky-400"], [class~="text-sky-500"], [class*="text-sky-400/"]) { color: #0369a1; }
+  .app-shell[data-theme="light"] :is([class~="text-violet-300"], [class~="text-violet-400"], [class~="text-violet-500"], [class*="text-violet-400/"]) { color: #6d28d9; }
+  .app-shell[data-theme="light"] :is([class~="text-purple-300"], [class~="text-purple-400"], [class~="text-purple-500"], [class*="text-purple-400/"]) { color: #7e22ce; }
+  .app-shell[data-theme="light"] :is([class~="text-blue-300"], [class~="text-blue-400"], [class~="text-blue-500"], [class*="text-blue-400/"]) { color: #1d4ed8; }
+  .app-shell[data-theme="light"] :is([class~="text-red-300"], [class~="text-red-400"], [class~="text-red-500"], [class*="text-red-400/"]) { color: #b91c1c; }
+  .app-shell[data-theme="light"] :is([class~="text-green-300"], [class~="text-green-400"], [class~="text-green-500"], [class*="text-green-400/"]) { color: #15803d; }
+  .app-shell[data-theme="light"] :is([class~="text-yellow-300"], [class~="text-yellow-400"], [class~="text-yellow-500"], [class*="text-yellow-400/"]) { color: #854d0e; }
+  .app-shell[data-theme="light"] :is([class~="text-orange-300"], [class~="text-orange-400"], [class~="text-orange-500"], [class*="text-orange-400/"]) { color: #c2410c; }
+  .app-shell[data-theme="light"] :is([class~="text-teal-300"], [class~="text-teal-400"], [class~="text-teal-500"], [class*="text-teal-400/"]) { color: #0f766e; }
+}

@@ -19,9 +19,11 @@ import { SettingsPage } from './components/pages/SettingsPage';
 import { AdminTenantsPage } from './components/pages/AdminTenantsPage';
 import { AdminBillingPage } from './components/pages/AdminBillingPage';
 import { resolvePageForRole } from './data/pageAccess';
+import { useBranchTheme } from './hooks/useBranchTheme';
 
 const AppContent: React.FC = () => {
   const { currentUser, activeTab, isLoggedIn } = useApp();
+  const { theme, toggleTheme } = useBranchTheme();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // If user is not logged in, show Login view
@@ -69,7 +71,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="app-shell flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
+    <div data-theme={currentUser.role === 'sube' ? theme : 'dark'} className="app-shell flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex shrink-0 h-full">
         <Sidebar />
@@ -91,7 +93,7 @@ const AppContent: React.FC = () => {
       {/* Main Workspace Area */}
       <div className="app-workspace flex flex-col flex-1 h-full min-w-0 overflow-hidden">
         {/* Sticky Header */}
-        <Header onOpenMobileMenu={() => setMobileSidebarOpen(true)} />
+        <Header onOpenMobileMenu={() => setMobileSidebarOpen(true)} theme={theme} onToggleTheme={toggleTheme} />
 
         {/* Offline / Online Status Indicator */}
         <OfflineIndicator />

@@ -12,14 +12,19 @@ import {
   Shield,
   Building2,
   Crown,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import type { BranchTheme } from '../../hooks/useBranchTheme';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
+  theme?: BranchTheme;
+  onToggleTheme?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, theme = 'dark', onToggleTheme }) => {
   const {
     currentUser,
     activeTab,
@@ -38,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   const [showPerspectiveModal, setShowPerspectiveModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const isBranch = currentUser?.role === 'sube';
   const isAdmin = currentUser?.role === 'admin';
   const isMerkez = currentUser?.role === 'merkez';
 
@@ -87,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
     <>
       <header className="h-16 bg-zinc-950/80 backdrop-blur border-b border-zinc-800/80 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30">
         {/* Left: Mobile Toggle & Page Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onOpenMobileMenu}
             className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
@@ -96,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
             <Menu className="w-5 h-5" />
           </button>
 
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm md:text-base font-bold text-zinc-100 tracking-tight">
                 {getPageTitle()}
@@ -123,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
           {/* Super Admin: Multi-Company (Tenant) Switcher */}
           {isAdmin && (
             <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/80 hover:border-zinc-600 rounded-lg px-2.5 py-1 text-xs transition-colors">
@@ -174,7 +180,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
             <span className="font-mono text-[11px]">{new Date().toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'short', year: 'numeric', weekday: 'short' })}</span>
           </div>
 
-          {/* Switch Perspective Modal Trigger (All roles) */}
+          {/* Branch users choose appearance instead of another role. */}
+          {isBranch ? (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label={theme === 'dark' ? 'Gündüz moduna geç' : 'Gece moduna geç'}
+              title={theme === 'dark' ? 'Gündüz moduna geç' : 'Gece moduna geç'}
+              aria-pressed={theme === 'light'}
+              className="inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 transition-colors shrink-0"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" aria-hidden="true" /> : <Moon className="w-5 h-5 text-indigo-400" aria-hidden="true" />}
+              <span className="hidden sm:inline text-xs font-medium">{theme === 'dark' ? 'Gündüz' : 'Gece'}</span>
+            </button>
+          ) : (
           <button
             onClick={() => setShowPerspectiveModal(true)}
             className="flex items-center gap-1.5 text-xs font-medium py-1.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 transition-colors shadow-sm"
@@ -185,6 +204,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
               {isAdmin ? 'Süper Admin' : isMerkez ? 'Merkez' : 'Şube'}
             </span>
           </button>
+
+          )}
 
           {/* Notifications */}
           <div className="relative">
@@ -242,7 +263,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
       )}
 
       {/* Perspective Switcher Modal */}
-      {showPerspectiveModal && (
+      {!isBranch && showPerspectiveModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
