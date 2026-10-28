@@ -1,0 +1,45 @@
+{
+  "name": "sube-analitik-cirox-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:ping": "tsx src/scripts/db-ping.ts",
+    "db:init": "tsx src/scripts/db-init.ts",
+    "db:migrate": "tsx src/scripts/db-migrate.ts",
+    "seed:admin": "tsx src/scripts/seed-admin.ts",
+    "test:auth": "tsx --test src/scripts/auth.integration.test.ts",
+    "r2:check": "tsx src/scripts/check-r2.ts",
+    "test:revenue": "tsx --test src/scripts/revenue.integration.test.ts",
+    "test:receipts": "tsx --test src/scripts/receipt.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1109.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.1.0",
+    "multer": "^2.1.1",
+    "mysql2": "^3.15.2",
+    "reflect-metadata": "^0.2.2",
+    "sharp": "^0.35.3",
+    "typeorm": "^0.3.24",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.23.12",
+    "typescript": "~5.8.3"
+  }
+}

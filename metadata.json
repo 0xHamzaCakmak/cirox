@@ -1,0 +1,6 @@
+{
+  "name": "Şube Analitik - Çoklu Şube Yönetim & Analitik Portalı",
+  "description": "40+ şubenin günlük cirosunu, gelir dağılımını, giderlerini, personel maliyetlerini ve finansal performansını merkezi olarak takip eden profesyonel SaaS analitik platformu.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#09090b" />
+      <stop offset="50%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <rect x="12" y="12" width="488" height="488" rx="98" fill="none" stroke="#27272a" stroke-width="4" />
+
+  <!-- Inner safe zone decorative glow -->
+  <circle cx="256" cy="240" r="140" fill="#10b981" opacity="0.08" />
+
+  <!-- Store / Branch Outline & Graph -->
+  <g transform="translate(106, 106)">
+    <!-- Roof / Canopy -->
+    <path d="M 20 100 L 150 30 L 280 100 Z" fill="url(#glowGrad)" opacity="0.9" />
+    <rect x="30" y="100" width="240" height="24" rx="6" fill="#3f3f46" />
+    
+    <!-- Pillars -->
+    <rect x="50" y="124" width="28" height="110" rx="4" fill="#52525b" />
+    <rect x="136" y="124" width="28" height="110" rx="4" fill="#52525b" />
+    <rect x="222" y="124" width="28" height="110" rx="4" fill="#52525b" />
+
+    <!-- Floor Base -->
+    <rect x="20" y="234" width="260" height="20" rx="6" fill="#27272a" stroke="#3f3f46" stroke-width="2" />
+
+    <!-- Dynamic Growth Line Chart overlay -->
+    <path d="M 40 200 Q 110 170 150 140 T 260 80" fill="none" stroke="url(#accentGrad)" stroke-width="12" stroke-linecap="round" />
+    <circle cx="260" cy="80" r="12" fill="#10b981" stroke="#ffffff" stroke-width="4" />
+
+    <!-- Currency / Turkish Lira / QR Node -->
+    <circle cx="150" cy="180" r="26" fill="#10b981" />
+    <text x="150" y="190" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff" text-anchor="middle">₺</text>
+  </g>
+</svg>
