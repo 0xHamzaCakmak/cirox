@@ -16,11 +16,13 @@ import {
   Camera,
   X,
   Smartphone,
+  Calculator,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { ReceiptCapture } from '../common/ReceiptCapture';
-import type { ReceiptAttachment } from '../../types';
+import type { ReceiptAttachment, DailyRevenueRecord } from '../../types';
+import { CashRevenueHistoryPage } from './CashRevenueHistoryPage';
 
 export const DailyRevenueEntryPage: React.FC = () => {
   const {
@@ -41,6 +43,9 @@ export const DailyRevenueEntryPage: React.FC = () => {
   const [date, setDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }));
   const [creditCard, setCreditCard] = useState<number | ''>(branch.revenueBreakdown.creditCard || '');
   const [cash, setCash] = useState<number | ''>(branch.revenueBreakdown.cash || '');
+  const [cashBase, setCashBase] = useState(0);
+  const [cashView, setCashView] = useState<'form' | 'history'>('form');
+  const [startCashCalculator, setStartCashCalculator] = useState(false);
   const [online, setOnline] = useState<number | ''>(branch.revenueBreakdown.online || '');
   const [other, setOther] = useState<number | ''>(branch.revenueBreakdown.other || '');
   const [notes, setNotes] = useState('');
@@ -50,6 +55,8 @@ export const DailyRevenueEntryPage: React.FC = () => {
   const [photoBusy, setPhotoBusy] = useState(false);
   const submitting = useRef(false);
   const readOnly = !branch.id || (actor?.role !== 'admin' && currentUser?.role !== 'sube');
+  const cashDraft = useRef({ branchId: branch.id, date, amount: Number(cash) || 0, base: cashBase });
+  cashDraft.current = { branchId: branch.id, date, amount: Number(cash) || 0, base: cashBase };
 
   // Auto sum
   const total = (Number(creditCard) || 0) + (Number(cash) || 0) + (Number(online) || 0) + (Number(other) || 0);
@@ -67,6 +74,7 @@ export const DailyRevenueEntryPage: React.FC = () => {
     const record = dailyRevenueRecords.find(record => record.branchId === branch.id && record.date === date);
     setCreditCard(record?.creditCard ?? '');
     setCash(record?.cash ?? '');
+    setCashBase(record?.cash ?? 0); setCashView('form');
     setOnline(record?.online ?? '');
     setOther(record?.other ?? '');
     setNotes(record?.notes ?? '');
@@ -96,6 +104,7 @@ export const DailyRevenueEntryPage: React.FC = () => {
     e.preventDefault();
     if (total <= 0 || photoBusy || readOnly || submitting.current) return;
     submitting.current = true; setIsSaving(true); setIsSaved(false);
+    const savedCash = Number(cash) || 0;
     try {
     await addDailyRevenue({
       branchId: branch.id,
@@ -103,6 +112,7 @@ export const DailyRevenueEntryPage: React.FC = () => {
       date,
       creditCard: Number(creditCard) || 0,
       cash: Number(cash) || 0,
+      cashExpected: cashBase,
       online: Number(online) || 0,
       other: Number(other) || 0,
       total,
@@ -112,13 +122,22 @@ export const DailyRevenueEntryPage: React.FC = () => {
       submittedBy: currentUser?.name || 'Şube Kullanıcısı',
     });
 
-    setIsSaved(true);
+    if (cashDraft.current.branchId !== branch.id || cashDraft.current.date !== date) return;
+    setCashBase(savedCash); setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
     } catch (error) { showNotification(error instanceof Error ? error.message : 'Ciro kaydedilemedi.', 'warning'); }
     finally { submitting.current = false; setIsSaving(false); }
   };
 
   const branchRecords = dailyRevenueRecords.filter((r) => r.branchId === branch.id);
+  const useCashRecord = (record: DailyRevenueRecord, preserveDraft: boolean) => {
+    const draft = cashDraft.current;
+    if (draft.branchId !== record.branchId || draft.date !== record.date) return;
+    const difference = preserveDraft ? Math.round((draft.amount - draft.base) * 100) / 100 : 0;
+    setCash(Math.round((record.cash + difference) * 100) / 100); setCashBase(record.cash); setIsSaved(false);
+  };
+  if (cashView === 'history') return <CashRevenueHistoryPage key={branch.id + date} branchId={branch.id} branchName={branch.name} date={date} readOnly={readOnly} startWithCalculator={startCashCalculator}
+    onBack={() => setCashView('form')} onAdded={record => useCashRecord(record, true)} onUseSaved={record => useCashRecord(record, false)} />;
 
   return (
     <div className="revenue-entry space-y-6 w-full max-w-4xl mx-auto pb-12">
@@ -277,6 +296,10 @@ export const DailyRevenueEntryPage: React.FC = () => {
               <p className="text-[11px] text-zinc-500 mt-1.5">
                 Kasadaki sayılan nakit ciro
               </p>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-800 pt-3">
+                <button type="button" disabled={readOnly || isSaving || photoBusy} onClick={() => { setStartCashCalculator(true); setCashView('history'); }} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-2 text-[11px] font-semibold text-cyan-400 disabled:opacity-50"><Calculator className="h-3.5 w-3.5" />Banknot Ekle</button>
+                <button type="button" disabled={isSaving || photoBusy || !branch.id} onClick={() => { setStartCashCalculator(false); setCashView('history'); }} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-2 text-[11px] text-zinc-300 disabled:opacity-50"><History className="h-3.5 w-3.5" />Nakit Geçmişi</button>
+              </div>
             </div>
 
             {/* Online Satış */}

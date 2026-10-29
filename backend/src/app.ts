@@ -14,6 +14,8 @@ import { expenseCategoriesRouter } from './routes/expense-categories';
 import { staffRouter } from './routes/staff';
 import { settingsRouter } from './routes/settings';
 import { notificationsRouter } from './routes/notifications';
+import { adminFinanceRouter } from './routes/admin-finance';
+import { cashRevenueRouter } from './routes/cash-revenue';
 
 export function createApp() {
   const app = express();
@@ -31,8 +33,10 @@ export function createApp() {
   });
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/admin', adminRouter);
+  app.use('/api/v1/admin', adminFinanceRouter);
   app.use('/api/v1/branches', branchesRouter);
   app.use('/api/v1/branch', revenueRouter);
+  app.use('/api/v1/branch', cashRevenueRouter);
   app.use('/api/v1/branch', expensesRouter);
   app.use('/api/v1/branch', expenseCategoriesRouter);
   app.use('/api/v1/branch', staffRouter);

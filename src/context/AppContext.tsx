@@ -14,6 +14,11 @@ import {
   ExpenseCategory,
   ExpenseRecord,
   PageTab,
+  SubscriptionUpdate,
+  BankAccount,
+  BankAccountInput,
+  CollectionOptions,
+  CashBanknotes,
   Staff,
   StaffPaymentHistory,
   User,
@@ -104,14 +109,18 @@ interface AppContextType {
     notes?: string;
   }) => void;
   toggleCompanyStatus: (companyId: string) => void;
-  updateCompanySubscription: (companyId: string, data: Partial<CompanySubscription>) => void;
-  chargeCompany: (companyId: string, amount: number, method: BillingMethod, notes?: string) => void;
+  updateCompanySubscription: (companyId: string, data: SubscriptionUpdate) => Promise<void>;
+  bankAccounts: BankAccount[];
+  addBankAccount: (input: BankAccountInput) => Promise<void>;
+  refreshAdminFinance: () => Promise<void>;
+  chargeCompany: (companyId: string, amount: number, method: BillingMethod, notes?: string, options?: CollectionOptions) => Promise<void>;
 
   // Actions
   logout: () => void;
   setActiveTab: (tab: PageTab) => void;
   setSelectedBranchId: (id: string) => void;
   addDailyRevenue: (data: Omit<DailyRevenueRecord, 'id' | 'createdAt'>) => Promise<void>;
+  addCashRevenueEntry: (branchId: string, date: string, banknotes: CashBanknotes, clientRequestId: string) => Promise<DailyRevenueRecord>;
   uploadReceipt: (branchId: string, file: File) => Promise<ReceiptAttachment>;
   addExpense: (data: Omit<ExpenseRecord, 'id' | 'createdAt'>) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
@@ -136,6 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminCenterId, setAdminCenterId] = useState('');
   const [managedUsers, setManagedUsers] = useState<User[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [branchListViewMode, setBranchListViewMode] = useState<'grid' | 'table'>('table');
   const [mobileBranchListViewMode, setMobileBranchListViewMode] = useState<'grid' | 'table'>('grid');
   const [branchListSort, setBranchListSort] = useState<BranchListSort>('revenue-desc');
@@ -308,7 +318,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllExpenses(data.expenses ?? []);
     setAllStaff(data.staffList ?? []);
     setStaffPayments(data.staffPayments ?? []);
-    setPayments([]);
+    setPayments(data.payments ?? []);
+    setBankAccounts(data.bankAccounts ?? []);
     setExpenseCategories(data.expenseCategories ?? []);
     setRegisteredUsers([]);
     setManagedUsers(data.managedUsers ?? []);
@@ -332,7 +343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ++authEpoch.current; advanceSessionVersion(); sessionMode.current = 'none';
       setCurrentUser(null); setCompanies([]); setAllBranches([]); setAllDailyRevenueRecords([]);
       setAdminCenterId(''); setManagedUsers([]);
-      setAllExpenses([]); setAllStaff([]); setStaffPayments([]); setPayments([]); setExpenseCategories([]); setRegisteredUsers([]);
+      setAllExpenses([]); setAllStaff([]); setStaffPayments([]); setPayments([]); setBankAccounts([]); setExpenseCategories([]); setRegisteredUsers([]);
       setActiveCompanyIdState(''); setSelectedBranchId('');
     };
     window.addEventListener('cirox:session-expired', expire);
@@ -378,7 +389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllExpenses([]);
     setAllStaff([]);
     setStaffPayments([]);
-    setPayments([]);
+    setPayments([]); setBankAccounts([]);
     setExpenseCategories([]);
   };
 
@@ -680,99 +691,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const updateCompanySubscription = (companyId: string, data: Partial<CompanySubscription>) => {
-    if (sessionMode.current === 'live') {
-      showNotification(pendingBackendMessage, 'info');
-      return;
-    }
-    setCompanies((prev) =>
-      prev.map((c) => {
-        if (c.id === companyId) {
-          return {
-            ...c,
-            subscription: {
-              ...c.subscription,
-              ...data,
-            },
-          };
-        }
-        return c;
-      })
-    );
-    showNotification('Abonelik & Lisans koşulları güncellendi');
+  const updateCompanySubscription = async (companyId: string, data: SubscriptionUpdate) => {
+    if (sessionMode.current !== 'live' || currentUser?.role !== 'admin') throw new Error('Bu işlem yalnızca süper admin içindir.');
+    const epoch = authEpoch.current;
+    const result = await api<{ bootstrap: BootstrapData }>('/admin/companies/' + encodeURIComponent(companyId) + '/subscription', data);
+    if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
+    applyBootstrap(result.bootstrap, true);
+    showNotification('Abonelik ve lisans bilgileri kaydedildi.', 'success');
   };
 
-  const chargeCompany = (companyId: string, amount: number, method: BillingMethod, notes?: string) => {
-    if (sessionMode.current === 'live') {
-      showNotification(pendingBackendMessage, 'info');
-      return;
-    }
-    const comp = companies.find((c) => c.id === companyId);
-    if (!comp) return;
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('tr-TR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const txnCode =
-      method === 'credit_card'
-        ? `TXN-POS-${Date.now().toString().slice(-6)}`
-        : `HAV-BNK-${Date.now().toString().slice(-6)}`;
-
-    const invNum = `SUB-${now.getFullYear()}-${(payments.length + 1).toString().padStart(4, '0')}`;
-
-    const newPayment: PaymentRecord = {
-      id: `pay-${Date.now()}`,
-      companyId: comp.id,
-      companyName: comp.name,
-      amount,
-      date: dateStr,
-      method,
-      status: 'success',
-      transactionId: txnCode,
-      invoiceNumber: invNum,
-      description:
-        notes ||
-        `${comp.name} - ${method === 'credit_card' ? 'Sanal POS Otomatik Kart Çekimi' : 'Merkez Banka Havalesi Tahsilatı'}`,
-    };
-
-    setPayments((prev) => [newPayment, ...prev]);
-
-    // Extend subscription next billing date +30 days and set status active
-    const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + 30);
-    const nextBillingDateStr = nextDate.toISOString().split('T')[0];
-
-    setCompanies((prev) =>
-      prev.map((c) => {
-        if (c.id === companyId) {
-          return {
-            ...c,
-            subscription: {
-              ...c.subscription,
-              status: 'active',
-              lastPaymentDate: dateStr,
-              lastPaymentAmount: amount,
-              nextBillingDate: nextBillingDateStr,
-              daysRemaining: 30,
-            },
-          };
-        }
-        return c;
-      })
-    );
-
-    showNotification(
-      `"${comp.name}" için ${amount.toLocaleString('tr-TR')} ₺ ${
-        method === 'credit_card' ? 'kredi kartından çekildi' : 'tahsilatı işlendi'
-      }! Fatura No: ${invNum}`,
-      'success'
-    );
+  const addBankAccount = async (input: BankAccountInput) => {
+    if (sessionMode.current !== 'live' || currentUser?.role !== 'admin') throw new Error('Bu işlem yalnızca süper admin içindir.');
+    const epoch = authEpoch.current;
+    const result = await api<{ bootstrap: BootstrapData }>('/admin/bank-accounts', input);
+    if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
+    applyBootstrap(result.bootstrap, true);
+    showNotification('Banka hesabı kaydedildi.', 'success');
+  };
+  const chargeCompany = async (companyId: string, amount: number, method: BillingMethod, notes = '', options?: CollectionOptions) => {
+    if (sessionMode.current !== 'live' || currentUser?.role !== 'admin') throw new Error('Bu işlem yalnızca süper admin içindir.');
+    if (!options) throw new Error('Tahsilat bilgileri eksik.');
+    const epoch = authEpoch.current;
+    const result = await api<{ bootstrap: BootstrapData }>('/admin/collections', { companyId, amount, method, notes, ...options });
+    if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
+    applyBootstrap(result.bootstrap, true);
+    showNotification('Tahsilat kaydedildi.', 'success');
+  };
+  const refreshAdminFinance = async () => {
+    if (currentUser?.role !== 'admin') return;
+    const epoch = authEpoch.current;
+    const result = await api<{ bankAccounts: BankAccount[]; payments: PaymentRecord[] }>('/admin/finance');
+    if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
+    setBankAccounts(result.bankAccounts); setPayments(result.payments);
   };
 
   const uploadReceipt = async (branchId: string, file: File): Promise<ReceiptAttachment> => {
@@ -787,18 +737,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const form = new FormData(); form.append('image', file);
     return api<ReceiptAttachment>('/branch/' + branchId + '/receipts', form);
   };
+  const applyRevenueRecord = (record: DailyRevenueRecord) => {
+    setAllDailyRevenueRecords(previous => [record, ...previous.filter(item => item.id !== record.id)]);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
+    if (record.date === today) setAllBranches(previous => previous.map(branch => branch.id === record.branchId ? {
+      ...branch, dailyRevenue: record.total, netProfit: record.total - branch.dailyExpense,
+      revenueBreakdown: { creditCard: record.creditCard, cash: record.cash, online: record.online, other: record.other },
+    } : branch));
+  };
+  const addCashRevenueEntry = async (branchId: string, date: string, banknotes: CashBanknotes, clientRequestId: string) => {
+    if (sessionMode.current !== 'live') throw new Error('Nakit girişini kaydetmek için oturum açın.');
+    const epoch = authEpoch.current;
+    const result = await api<{ record: DailyRevenueRecord }>('/branch/cash-entries', { branchId, date, banknotes, clientRequestId });
+    if (epoch !== authEpoch.current || sessionMode.current !== 'live') throw new Error('Oturum değişti. Nakit geçmişini yeniden yükleyin.');
+    applyRevenueRecord(result.record);
+    showNotification('Banknot sayımı nakit hasılatına eklendi.', 'success');
+    return result.record;
+  };
   const addDailyRevenue = async (data: Omit<DailyRevenueRecord, 'id' | 'createdAt'>) => {
     if (sessionMode.current === 'live') {
+      const epoch = authEpoch.current;
       const result = await api<{ record: DailyRevenueRecord }>('/branch/revenue', {
         branchId: data.branchId, date: data.date, creditCard: data.creditCard, cash: data.cash,
+        cashExpected: data.cashExpected ?? dailyRevenueRecords.find(record => record.branchId === data.branchId && record.date === data.date)?.cash ?? 0,
         online: data.online, other: data.other, notes: data.notes ?? '', receiptIds: data.receiptIds ?? [],
       });
-      setAllDailyRevenueRecords(previous => [result.record, ...previous.filter(record => record.id !== result.record.id)]);
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
-      if (result.record.date === today) setAllBranches(previous => previous.map(branch => branch.id === data.branchId ? {
-        ...branch, dailyRevenue: result.record.total, netProfit: result.record.total - branch.dailyExpense,
-        revenueBreakdown: { creditCard: result.record.creditCard, cash: result.record.cash, online: result.record.online, other: result.record.other },
-      } : branch));
+      if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
+      applyRevenueRecord(result.record);
       showNotification('Günlük ciro veritabanına kaydedildi.', 'success');
       return;
     }
@@ -837,6 +802,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const applyOperationalData = (data: BootstrapData) => {
+    setPayments(data.payments ?? []);
+    setBankAccounts(data.bankAccounts ?? []);
     setManagedUsers(data.managedUsers ?? []);
     setAllBranches(data.branches);
     setAllDailyRevenueRecords(data.dailyRevenueRecords ?? []);
@@ -1125,11 +1092,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createCompany,
         toggleCompanyStatus,
         updateCompanySubscription,
+        bankAccounts, addBankAccount, refreshAdminFinance,
         chargeCompany,
         logout,
         setActiveTab,
         setSelectedBranchId: currentUser?.role === 'admin' ? selectAdminBranch : setSelectedBranchId,
-        addDailyRevenue,
+        addDailyRevenue, addCashRevenueEntry,
         uploadReceipt,
         addExpense,
         deleteExpense,

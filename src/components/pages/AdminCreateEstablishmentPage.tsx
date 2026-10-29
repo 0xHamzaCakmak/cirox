@@ -17,7 +17,7 @@ export const AdminCreateEstablishmentPage: React.FC = () => {
     }
   }, [centers, selectedMerkezId]);
   const [establishmentName, setEstablishmentName] = useState('Savcı Usta');
-  const [establishmentCode, setEstablishmentCode] = useState('SAVCI');
+  const [establishmentCode, setEstablishmentCode] = useState('savci');
   const [establishmentCity, setEstablishmentCity] = useState('İstanbul');
   const [establishmentDistrict, setEstablishmentDistrict] = useState('Sarıyer');
   const [establishmentOwnerName, setEstablishmentOwnerName] = useState('Savcı Usta');
@@ -172,14 +172,16 @@ export const AdminCreateEstablishmentPage: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="Örn: SAVCI"
+                      id="establishment-username" aria-label="İşletme kullanıcı adı" autoComplete="username"
+                      placeholder="Örn: savci"
                       value={establishmentCode}
                       required
                       minLength={3}
                       maxLength={32}
                       pattern="[A-Za-z0-9_.-]+"
-                      onChange={(e) => setEstablishmentCode(e.target.value.toUpperCase())}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 uppercase font-mono focus:outline-none focus:border-indigo-500"
+                      autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                      onChange={(e) => setEstablishmentCode(e.target.value.toLowerCase())}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>

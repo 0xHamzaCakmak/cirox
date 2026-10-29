@@ -3,6 +3,7 @@ import { appDataSource } from '../database/data-source';
 import { BranchEntity, CompanyEntity, UserEntity, type BranchRow, type CompanyRow, type UserRow } from '../database/entities';
 import { revenueRecords } from './revenue';
 import { expenseRecords, expenseCategories, staffRecords } from './expenses';
+import { adminFinanceData } from './admin-finance';
 
 export function publicUser(user: UserRow, company?: CompanyRow, branch?: BranchRow) {
   return {
@@ -15,6 +16,7 @@ export function publicUser(user: UserRow, company?: CompanyRow, branch?: BranchR
 }
 
 export async function bootstrapData(user: UserRow) {
+  const finance: Partial<Awaited<ReturnType<typeof adminFinanceData>>> = user.role === 'admin' ? await adminFinanceData() : {};
   const companies = await appDataSource.getRepository(CompanyEntity).find({
     where: user.role === 'admin' ? {} : { id: user.companyId! }, order: { createdAt: 'DESC' },
   });
@@ -37,6 +39,7 @@ export async function bootstrapData(user: UserRow) {
   ]);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
   return {
+    ...finance,
     ...(user.role === 'admin' ? { managedUsers: [...branchUsers, ...centerUsers].map(account =>
       publicUser(account, companies.find(company => company.id === account.companyId), branches.find(branch => branch.id === account.branchId))) } : {}),
     dailyRevenueRecords: records,
@@ -58,6 +61,8 @@ export async function bootstrapData(user: UserRow) {
         billingCycle: company.billingCycle, billingMethod: company.billingMethod, status: company.status,
         branchLimit: company.branchLimit, startDate: company.startDate, nextBillingDate: company.nextBillingDate,
         daysRemaining: Math.ceil((Date.parse(company.nextBillingDate + 'T00:00:00+03:00') - Date.now()) / 86400000),
+        lastPaymentDate: finance.payments?.find(payment => payment.companyId === company.id)?.date,
+        lastPaymentAmount: finance.payments?.find(payment => payment.companyId === company.id)?.amount,
         autoRenew: company.autoRenew,
       },
     })),

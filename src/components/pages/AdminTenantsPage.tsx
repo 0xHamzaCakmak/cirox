@@ -31,38 +31,9 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Company, BillingMethod } from '../../types';
-
-interface BankAccount {
-  bankName: string;
-  accountName: string;
-  iban: string;
-  currency: string;
-  branchCode: string;
-}
-
-const CORPORATE_BANK_ACCOUNTS: BankAccount[] = [
-  {
-    bankName: 'Garanti BBVA',
-    accountName: 'MasaM QR Bilişim Teknolojileri A.Ş.',
-    iban: 'TR84 0006 2000 1234 5678 9012 34',
-    currency: 'TRY',
-    branchCode: '245 - Kadıköy Rıhtım',
-  },
-  {
-    bankName: 'Akbank',
-    accountName: 'MasaM QR Bilişim Teknolojileri A.Ş.',
-    iban: 'TR42 0004 6000 9876 5432 1098 76',
-    currency: 'TRY',
-    branchCode: '312 - Kartal Çarşı',
-  },
-  {
-    bankName: 'Türkiye İş Bankası',
-    accountName: 'MasaM QR Bilişim Teknolojileri A.Ş.',
-    iban: 'TR19 0006 4000 5544 3322 1100 99',
-    currency: 'TRY',
-    branchCode: '108 - Levent Ticari',
-  },
-];
+import { AdminSubscriptionEditPage } from './AdminSubscriptionEditPage';
+import { AdminCollectionPage } from './AdminCollectionPage';
+import { AdminBankAccountsPage } from './AdminBankAccountsPage';
 
 interface AdminTenantsPageProps {
   defaultTab?: 'tenants' | 'billing';
@@ -74,11 +45,9 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
     activeCompanyId,
     setActiveCompanyId,
     toggleCompanyStatus,
-    updateCompanySubscription,
-    chargeCompany,
     switchPerspective,
     setActiveTab,
-    payments,
+    payments, bankAccounts,
     showNotification,
   } = useApp();
 
@@ -95,24 +64,11 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
   const [reminderTier, setReminderTier] = useState<'3_days' | '7_days' | '10_days'>('3_days');
 
   // Modal States
-  const [showChargeModal, setShowChargeModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showBankAccountsModal, setShowBankAccountsModal] = useState(false);
+  const [collectionCompanyId, setCollectionCompanyId] = useState<string | null>(null);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [showBankAccountsPage, setShowBankAccountsPage] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [copiedIban, setCopiedIban] = useState<string | null>(null);
-
-  // Charge Modal Form State
-  const [chargeAmount, setChargeAmount] = useState<number>(0);
-  const [chargeMethod, setChargeMethod] = useState<BillingMethod>('bank_transfer');
-  const [chargeNote, setChargeNote] = useState('');
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-
-  // Edit Subscription Modal Form State
-  const [editPrice, setEditPrice] = useState<number>(0);
-  const [editBranchLimit, setEditBranchLimit] = useState<number>(0);
-  const [editBillingMethod, setEditBillingMethod] = useState<BillingMethod>('bank_transfer');
-  const [editPlanName, setEditPlanName] = useState('');
 
   // High Level Metrics
   const activeCount = useMemo(() => companies.filter((c) => c.subscription?.status === 'active').length, [companies]);
@@ -175,12 +131,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
     });
   }, [payments, searchTerm]);
 
-  const handleCopyIban = (iban: string) => {
-    navigator.clipboard.writeText(iban);
-    setCopiedIban(iban);
-    setTimeout(() => setCopiedIban(null), 2500);
-  };
-
   const handleOpenWhatsApp = (comp: Company) => {
     setSelectedCompany(comp);
     setShowWhatsAppModal(true);
@@ -193,53 +143,24 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
     window.open(url, '_blank');
     setShowWhatsAppModal(false);
   };
+  const reminderText = selectedCompany ? `Sayın ${selectedCompany.ownerName} (${selectedCompany.name}),\n\nCiroX lisans yenileme bedeliniz: ${(selectedCompany.subscription.price || 0).toLocaleString('tr-TR')} ₺.\n\n${bankAccounts.filter(bank => bank.isActive).map(bank => `${bank.bankName}\nIBAN: ${bank.iban}\nAlıcı: ${bank.accountName}`).join('\n\n') || 'Banka hesabı bilgileri için bizimle iletişime geçebilirsiniz.'}\n\nİyi çalışmalar dileriz.` : '';
 
-  const openChargeModal = (comp: Company) => {
-    setSelectedCompany(comp);
-    setChargeAmount(comp.subscription?.price ?? 0);
-    setChargeMethod(comp.subscription?.billingMethod ?? 'bank_transfer');
-    setChargeNote(`${comp.name} - Lisans Yenileme ve Tahsilat`);
-    setShowChargeModal(true);
-  };
+  const openChargePage = (company: Company) => setCollectionCompanyId(company.id);
 
-  const handleProcessCharge = () => {
-    if (!selectedCompany) return;
-    setIsProcessingPayment(true);
-
-    setTimeout(() => {
-      chargeCompany(selectedCompany.id, chargeAmount, chargeMethod, chargeNote);
-      setIsProcessingPayment(false);
-      setShowChargeModal(false);
-    }, 700);
-  };
-
-  const openEditModal = (comp: Company) => {
-    setSelectedCompany(comp);
-    setEditPrice(comp.subscription?.price ?? 0);
-    setEditBranchLimit(comp.subscription?.branchLimit ?? 1);
-    setEditBillingMethod(comp.subscription?.billingMethod ?? 'bank_transfer');
-    setEditPlanName(comp.subscription?.planName ?? 'Pro');
-    setShowEditModal(true);
-  };
-
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCompany) return;
-
-    updateCompanySubscription(selectedCompany.id, {
-      price: editPrice,
-      branchLimit: editBranchLimit,
-      billingMethod: editBillingMethod,
-      planName: editPlanName,
-    });
-    setShowEditModal(false);
-  };
+  const openEditPage = (company: Company) => setEditingCompanyId(company.id);
 
   const handleEnterCompanyAsMerkez = (comp: Company) => {
     setActiveCompanyId(comp.id);
     switchPerspective('merkez', undefined, comp.id);
     setActiveTab('dashboard');
   };
+
+  const collectionCompany = companies.find(company => company.id === collectionCompanyId);
+  if (showBankAccountsPage) return <AdminBankAccountsPage onBack={() => setShowBankAccountsPage(false)} />;
+  if (collectionCompany) return <AdminCollectionPage company={collectionCompany} onBack={() => setCollectionCompanyId(null)} onManageBanks={() => setShowBankAccountsPage(true)} />;
+
+  const editingCompany = companies.find(company => company.id === editingCompanyId);
+  if (editingCompany) return <AdminSubscriptionEditPage key={editingCompany.id} company={editingCompany} onBack={() => setEditingCompanyId(null)} />;
 
   return (
     <div className="space-y-6 pb-12 select-none">
@@ -252,7 +173,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-bold text-zinc-100 tracking-tight">
-                MasaM QR — Aboneler & Lisans Yönetimi
+                CiroX — Aboneler & Lisans Yönetimi
               </h1>
               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                 Süper Admin
@@ -271,11 +192,11 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition-colors shadow-xs"
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>Abonelik Tahsilatları (Sanal POS) →</span>
+            <span>Abonelik Tahsilatları →</span>
           </button>
 
           <button
-            onClick={() => setShowBankAccountsModal(true)}
+            onClick={() => setShowBankAccountsPage(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 text-xs font-semibold transition-colors shadow-xs"
           >
             <Landmark className="w-3.5 h-3.5 text-zinc-400" />
@@ -436,7 +357,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                     </button>
 
                     <button
-                      onClick={() => openChargeModal(comp)}
+                      onClick={() => openChargePage(comp)}
                       className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-xs"
                     >
                       <CreditCard className="w-3.5 h-3.5" />
@@ -543,7 +464,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
             <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder={activeMainTab === 'tenants' ? 'Restoran, yetkili, şehir ara...' : 'Fatura no, işletme veya açıklama ara...'}
+              placeholder={activeMainTab === 'tenants' ? 'Restoran, yetkili, şehir ara...' : 'Referans, işletme veya açıklama ara...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
@@ -620,6 +541,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                           <span className="text-[11px] text-zinc-400">
                             {isComp5 ? 'Yıllık Peşin' : sub?.billingCycle === 'yearly' ? 'Yıllık Sözleşme' : 'Aylık Otomatik'}
                           </span>
+                          <span className="block text-[10px] text-zinc-500">Başlangıç: {sub.startDate?.split('-').reverse().join('.') || '—'}</span>
                         </div>
                       </td>
 
@@ -639,10 +561,10 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                       <td className="py-3.5 px-4">
                         <div className="text-[11px]">
                           <span className="text-zinc-400 block font-mono">
-                            {isComp5 ? '—' : '2026-08-01'}
+                            {sub.lastPaymentDate || '—'}
                           </span>
                           <span className="text-zinc-500 text-[10px]">
-                            {sub?.billingMethod === 'credit_card' ? 'Kredi Kartı' : 'Banka Havalesi'}
+                            {sub?.billingMethod === 'credit_card' ? 'Kredi Kartı' : sub?.billingMethod === 'manual' ? 'Nakit / Elden' : 'Banka Havalesi'}
                           </span>
                         </div>
                       </td>
@@ -672,6 +594,10 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                             <AlertTriangle className="w-3 h-3 text-rose-400" />
                             Gecikmede
                           </span>
+                        ) : sub?.status === 'trial' ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-400"><Clock className="h-3 w-3" />Deneme</span>
+                        ) : sub?.status === 'active' && sub.startDate > new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400"><Clock className="h-3 w-3" />Başlangıç Bekliyor</span>
                         ) : sub?.status === 'active' ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -698,7 +624,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
 
                           {/* Tahsil Et Button */}
                           <button
-                            onClick={() => openChargeModal(comp)}
+                            onClick={() => openChargePage(comp)}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-xs"
                             title="Abonelik Tahsilatını İşle"
                           >
@@ -721,7 +647,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
 
                           {/* Edit */}
                           <button
-                            onClick={() => openEditModal(comp)}
+                            onClick={() => openEditPage(comp)}
                             className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
                             title="Abonelik Şartlarını Düzenle"
                           >
@@ -753,7 +679,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-950/80 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
                   <th className="py-3 px-4">RESTORAN / İŞLETME</th>
-                  <th className="py-3 px-4">İŞLEM / FATURA NO</th>
+                  <th className="py-3 px-4">İŞLEM / REFERANS NO</th>
                   <th className="py-3 px-4">ÖDEME YÖNTEMİ</th>
                   <th className="py-3 px-4">TARİH & SAAT</th>
                   <th className="py-3 px-4">TUTAR</th>
@@ -781,7 +707,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                         ) : (
                           <>
                             <Landmark className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Banka Havale/EFT</span>
+                            <span>{p.method === 'manual' ? 'Nakit / Elden' : 'Banka Havale/EFT'}</span>
                           </>
                         )}
                       </span>
@@ -800,10 +726,10 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
-                        onClick={() => alert(`Fatura & Dekont Görüntüleniyor:\nFatura No: ${p.invoiceNumber}\nİşletme: ${p.companyName}\nTutar: ${(p.amount ?? 0).toLocaleString('tr-TR')} ₺`)}
+                        onClick={() => alert(`Tahsilat Kaydı:\nReferans: ${p.invoiceNumber}\nİşletme: ${p.companyName}\nTutar: ${(p.amount ?? 0).toLocaleString('tr-TR')} ₺`)}
                         className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium border border-zinc-700"
                       >
-                        Dekont Gör
+                        Kaydı Gör
                       </button>
                     </td>
                   </tr>
@@ -813,76 +739,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
           </div>
         )}
       </div>
-
-      {/* 5. MODAL: BANKA HESAPLARI MODAL */}
-      {showBankAccountsModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
-                  <Landmark className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-100">Şirket Banka Tahsilat Hesapları</h3>
-                  <p className="text-[11px] text-zinc-400">Restoranların lisans havalesi yapacağı resmi hesaplar</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowBankAccountsModal(false)}
-                className="text-zinc-400 hover:text-zinc-200 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 mt-4">
-              {CORPORATE_BANK_ACCOUNTS.map((acc, idx) => (
-                <div
-                  key={idx}
-                  className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 hover:border-zinc-700 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-bold text-zinc-100 text-xs">{acc.bankName}</span>
-                    <span className="text-[10px] font-mono text-zinc-400">{acc.branchCode}</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 mb-2">Alıcı: <span className="text-zinc-200 font-medium">{acc.accountName}</span></p>
-                  <div className="flex items-center justify-between bg-zinc-900 px-3 py-2 rounded-lg border border-zinc-800">
-                    <span className="font-mono text-xs font-semibold text-zinc-200 tracking-wider">
-                      {acc.iban}
-                    </span>
-                    <button
-                      onClick={() => handleCopyIban(acc.iban)}
-                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-indigo-300 border border-zinc-700"
-                    >
-                      {copiedIban === acc.iban ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400">Kopyalandı</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          <span>IBAN Kopyala</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 pt-3 border-t border-zinc-800 flex justify-end">
-              <button
-                onClick={() => setShowBankAccountsModal(false)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-medium hover:bg-zinc-700"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 6. MODAL: WHATSAPP HATIRLATMA MODAL */}
       {showWhatsAppModal && selectedCompany && (
@@ -920,7 +776,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                   Gönderilecek Mesaj Metni
                 </label>
                 <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 leading-relaxed font-sans whitespace-pre-wrap">
-                  {`Sayın *${selectedCompany.ownerName}* (${selectedCompany.name}),\n\nMasaM QR restoran yazılım lisansınızın yenileme vadesi dolmuştur. Kesintisiz sipariş ve menü erişimi için ₺${(selectedCompany.subscription?.price ?? 0).toLocaleString('tr-TR')} tutarındaki lisans bedelini havale yapmanızı rica ederiz.\n\nGaranti BBVA IBAN:\nTR84 0006 2000 1234 5678 9012 34\nAlıcı: MasaM QR Bilişim A.Ş.\n\nBilgilerinize sunar, iyi çalışmalar dileriz.`}
+                  {reminderText}
                 </div>
               </div>
 
@@ -937,7 +793,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                   onClick={() =>
                     handleSendWhatsAppMessage(
                       selectedCompany.ownerPhone,
-                      `Sayın ${selectedCompany.ownerName} (${selectedCompany.name}), MasaM QR lisansınızın vadesi dolmuştur. Kesintisiz kullanım için ₺${(selectedCompany.subscription?.price ?? 0).toLocaleString('tr-TR')} tutarındaki lisans bedelini Garanti BBVA TR84 0006 2000 1234 5678 9012 34 hesabımıza havale etmenizi rica ederiz.`
+                      reminderText
                     )
                   }
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-md shadow-emerald-500/20"
@@ -951,223 +807,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
         </div>
       )}
 
-      {/* 7. MODAL: TAHSİLAT YAP (CHARGE MODAL) */}
-      {showChargeModal && selectedCompany && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
-                  <CreditCard className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-100">Abonelik Lisans Tahsilatı Yap</h3>
-                  <p className="text-[11px] text-zinc-400">{selectedCompany.name}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowChargeModal(false)}
-                className="text-zinc-400 hover:text-zinc-200 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mt-4">
-              {/* Payment Method Option */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Tahsilat Yolu
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setChargeMethod('bank_transfer')}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                      chargeMethod === 'bank_transfer'
-                        ? 'bg-emerald-500/10 border-emerald-500/60 text-zinc-100'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    <span className="font-bold block text-emerald-300">Havale / EFT</span>
-                    <span className="text-[10px] text-zinc-400">Merkez banka dekontu</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setChargeMethod('credit_card')}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                      chargeMethod === 'credit_card'
-                        ? 'bg-indigo-500/10 border-indigo-500/60 text-zinc-100'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    <span className="font-bold block text-indigo-300">Sanal POS / Kart</span>
-                    <span className="text-[10px] text-zinc-400">Kayıtlı karttan çek</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Tahsil Edilecek Lisans Bedeli (₺)
-                </label>
-                <input
-                  type="number"
-                  value={chargeAmount}
-                  onChange={(e) => setChargeAmount(Number(e.target.value))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Note */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Dekont / Fatura Notu
-                </label>
-                <input
-                  type="text"
-                  value={chargeNote}
-                  onChange={(e) => setChargeNote(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-700"
-                />
-              </div>
-
-              {/* Info Box */}
-              <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-xs text-zinc-400">
-                <div className="flex items-center gap-1.5 text-zinc-300 font-medium mb-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>İşlem Sonrası Lisans Süresi:</span>
-                </div>
-                <p className="text-[11px] text-zinc-400">
-                  Tahsilat onaylandığında işletmenin lisansı 1 dönem uzatılır ve gecikme uyarısı anında kalkar.
-                </p>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowChargeModal(false)}
-                  className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="button"
-                  disabled={isProcessingPayment}
-                  onClick={handleProcessCharge}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 disabled:opacity-50"
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Tahsilat İşleniyor...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4" />
-                      <span>Tahsilatı Onayla & Kaydet</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 8. MODAL: EDIT SUBSCRIPTION */}
-      {showEditModal && selectedCompany && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-zinc-100">Abonelik & Lisans Düzenle</h3>
-              </div>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-zinc-400 hover:text-zinc-200 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEdit} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Paket Adı
-                </label>
-                <input
-                  type="text"
-                  value={editPlanName}
-                  onChange={(e) => setEditPlanName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-700"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Lisans Bedeli (₺)
-                  </label>
-                  <input
-                    type="number"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:border-zinc-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Şube / Masa Limiti
-                  </label>
-                  <input
-                    type="number"
-                    value={editBranchLimit}
-                    onChange={(e) => setEditBranchLimit(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-zinc-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Tahsilat Modeli
-                </label>
-                <select
-                  value={editBillingMethod}
-                  onChange={(e) => setEditBillingMethod(e.target.value as BillingMethod)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-700"
-                >
-                  <option value="bank_transfer">Merkezden Banka Havale / EFT</option>
-                  <option value="credit_card">Otomatik Kredi Kartı Çekimi (Sanal POS)</option>
-                  <option value="manual">Manuel Nakit / Elden</option>
-                </select>
-              </div>
-
-              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm shadow-indigo-600/20"
-                >
-                  Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

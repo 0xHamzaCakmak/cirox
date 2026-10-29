@@ -46,7 +46,8 @@ class CDP {
 }
 let root, page;
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
-const company = { ...EMPTY_COMPANY, id: 'center-test', kind: 'center', name: 'Sarıyer Börek Savcı Usta Uzun İşletme Adı', ownerName: 'Savcı Şahin', ownerEmail: 'patron@example.test', branchesCount: 2 };
+const company = { ...EMPTY_COMPANY, id: 'center-test', kind: 'center', name: 'Sarıyer Börek Savcı Usta Uzun İşletme Adı', ownerName: 'Savcı Şahin', ownerEmail: 'patron@example.test', branchesCount: 2,
+  subscription: { ...EMPTY_COMPANY.subscription, planName: 'Test Lisansı', startDate: today, nextBillingDate: '2099-01-01' } };
 const branches = [1, 2].map(index => ({ ...EMPTY_BRANCH, id: `branch-${index}`, companyId: `business-${index}`, centerCompanyId: company.id,
   name: `Savcı Usta Sarıyer Börek ${index} — Uzun Şube Adı ve İşletme Birimi`, code: `SAVCI-${index}`, city: 'İstanbul', district: 'Sarıyer', managerName: 'Savcı Usta', phone: '0532 000 00 00',
   staffCount: 2, dailyRevenue: 15432.75, dailyExpense: 4500, netProfit: 10932.75 }));
@@ -58,6 +59,7 @@ const data = { user: { id: 'patron-test', role: 'merkez', companyId: company.id,
   expenses, expenseCategories: branches.map(branch => ({ id: 'ingredients', branchId: branch.id, name: 'Hammadde ve Ürün Alımları', isActive: true, type: 'single', iconName: 'Receipt', description: '' })),
   staffList: [{ id: 'staff-test', branchId: branches[0].id, fullName: 'Test Personeli', status: 'active', dailyWage: 1000, monthlySalary: 30000, salaryBasis: 'daily' }] };
 const errors = [], requests = [], results = [];
+let cashEntries = [];
 const visible = `e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')`;
 async function waitFor(expression, label) {
   for (let attempt = 0; attempt < 100; attempt++) { if (await page.evaluate(expression)) return; await delay(100); }
@@ -106,13 +108,48 @@ try {
   page.on('Fetch.requestPaused', async event => {
     const url = new URL(event.request.url);
     requests.push({ path: url.pathname, method: event.request.method });
+    if (url.pathname.endsWith('/cash-entries')) {
+      let record = data.dailyRevenueRecords.find(record => record.branchId === 'branch-1' && record.date === today) || null;
+      if (event.request.method === 'POST') {
+        const input = JSON.parse(event.request.postData);
+        const amount = Object.entries(input.banknotes).reduce((sum, [note, count]) => sum + Number(note) * count, 0);
+        record.cash += amount; record.total += amount;
+        cashEntries.unshift({ id: 'cash-ui-test', branchId: 'branch-1', date: today, kind: 'banknotes', amount, banknotes: input.banknotes, actorName: 'Test', createdAt: new Date().toISOString() });
+      }
+      await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ entries: cashEntries, record, entryId: 'cash-ui-test' })).toString('base64') }); return;
+    }
+    if (url.pathname.endsWith('/bank-accounts') && event.request.method === 'POST') {
+      const input = JSON.parse(event.request.postData);
+      const bank = { ...input, id: 'bank-ui-test', iban: input.iban.replace(/\s/g, '').toUpperCase(), totalCollected: 0, paymentCount: 0, isActive: true, createdAt: new Date().toISOString() };
+      data.bankAccounts = [...(data.bankAccounts || []), bank];
+      await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 201, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ id: bank.id, bootstrap: data })).toString('base64') }); return;
+    }
+    if (url.pathname.endsWith('/collections') && event.request.method === 'POST') {
+      const input = JSON.parse(event.request.postData), bank = data.bankAccounts.find(bank => bank.id === input.bankAccountId), company = data.companies.find(company => company.id === input.companyId);
+      const payment = { id: 'payment-ui-test', companyId: company.id, companyName: company.name, amount: input.amount, date: input.date, method: input.method, bankAccountId: bank?.id, bankName: bank?.bankName, iban: bank?.iban, status: 'success', invoiceNumber: input.receiptNumber, transactionId: 'TAH-TEST', receiptNumber: input.receiptNumber, description: input.notes };
+      data.payments = [...(data.payments || []), payment];
+      if (bank) { bank.totalCollected += input.amount; bank.paymentCount++; }
+      company.subscription.lastPaymentDate = input.date; company.subscription.lastPaymentAmount = input.amount;
+      await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ paymentId: payment.id, bootstrap: data })).toString('base64') }); return;
+    }
+    if (url.pathname.endsWith('/finance')) {
+      await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ bankAccounts: data.bankAccounts || [], payments: data.payments || [] })).toString('base64') }); return;
+    }
+    if (url.pathname.endsWith('/subscription') && event.request.method === 'POST') {
+      const input = JSON.parse(event.request.postData);
+      const targetId = url.pathname.split('/').at(-2);
+      const target = data.companies.find(company => company.id === targetId);
+      assert.ok(target); target.subscription = { ...target.subscription, ...input, daysRemaining: Math.ceil((Date.parse(input.nextBillingDate + 'T00:00:00+03:00') - Date.now()) / 86400000) };
+      await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ bootstrap: data })).toString('base64') });
+      return;
+    }
     if (url.pathname.includes('/receipts/')) {
       const image = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="440"><rect width="320" height="440" fill="white"/><text x="25" y="50" fill="black" font-size="20">CIROX TEST RECEIPT</text></svg>';
       await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'image/svg+xml' }, { name: 'Cache-Control', value: 'no-store' }], body: Buffer.from(image).toString('base64') });
       return;
     }
     const feed = { events: [{ id: '1', branchId: branches[0].id, branchName: branches[0].name, title: 'Günlük ciro kaydedildi', detail: 'İzole tarayıcı testi bildirimi', tone: 'income', kind: 'revenue_created', amount: 15432.75, actorName: 'Şube Kullanıcısı', createdAt: new Date().toISOString(), read: false }], unreadCount: 1, latestId: '1' };
-    const payload = url.pathname.endsWith('/auth/me') ? data : url.pathname.endsWith('/notifications') ? feed : { error: 'Test intercepted this request.' };
+    const payload = url.pathname.endsWith('/auth/me') ? data : url.pathname.endsWith('/notifications') ? feed : url.pathname.endsWith('/admin/accounts') ? { accounts: [] } : { error: 'Test intercepted this request.' };
     await page.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: event.request.method === 'GET' ? 200 : 403,
       responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Cache-Control', value: 'no-store' }], body: Buffer.from(JSON.stringify(payload)).toString('base64') });
   });
@@ -205,9 +242,97 @@ try {
     await waitFor(`document.querySelector('.app-shell')?.dataset.ownerRole === ${JSON.stringify(role)}`, `${role} isolation`);
     assert.equal(await page.evaluate(`!!document.querySelector('.patron-mobile-header, .patron-bottom-nav')`), false, `${role} must retain its existing header and navigation`);
     await screenshot(`other-role-${role}-375`);
+    if (role === 'sube') {
+      data.dailyRevenueRecords = [{ id: 'cash-record', branchId: 'branch-1', date: today, cash: 100, creditCard: 0, online: 0, other: 0, total: 100, notes: '', createdAt: new Date().toISOString() }];
+      await page.send('Page.reload'); await delay(600);
+      await waitFor(`!![...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='Banknot Ekle')`, 'cash card');
+      await page.evaluate(`(() => { const inputs=[...document.querySelectorAll('main input[inputmode="decimal"]')]; for(const [index,value] of [[0,'777.25'],[1,'150']]) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(inputs[index],value); inputs[index].dispatchEvent(new Event('input',{bubbles:true})); } const note=document.querySelector('main textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(note,'Preserved draft'); note.dispatchEvent(new Event('input',{bubbles:true})); })()`); await delay(100);
+      await clickText('Banknot Ekle');
+      await waitFor(`!!document.querySelector('#banknote-200') && !document.querySelector('[role="status"]')`, 'banknote calculator');
+      assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('#cash-banknote-calculator input')].map(e=>e.value)`), Array(6).fill(''));
+      await page.evaluate(`(() => { for(const [note,value] of [[200,'2'],[5,'3']]) { const input=document.querySelector('#banknote-'+note); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value); input.dispatchEvent(new Event('input',{bubbles:true})); } })()`); await delay(100);
+      assert.ok(await page.evaluate(`document.querySelector('#cash-banknote-calculator').textContent.includes('415,00')`));
+      for (const width of [320,360,390,430,768,1024,1280]) {
+        await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 }); await delay(100);
+        assert.ok(await page.evaluate(`document.documentElement.scrollWidth<=innerWidth && document.querySelector('main').scrollWidth<=document.querySelector('main').clientWidth`), `Cash calculator fits ${width}`);
+        assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.cash-banknote-row')).gridTemplateColumns.split(' ').length`), 3);
+        assert.equal(await page.evaluate(`document.querySelector('#banknote-200').getBoundingClientRect().height`), 28, 'Compact banknote input height');
+        assert.ok(await page.evaluate(`(() => { const left=document.querySelector('.cash-banknote-panel').getBoundingClientRect(),right=document.querySelector('.cash-transactions-panel').getBoundingClientRect(); return Math.abs(left.top-right.top)<1 && left.right<right.left && right.right<=innerWidth; })()`), `Cash panels remain side by side ${width}`);
+        await screenshot(`cash-calculator-${width}`);
+      }
+      await clickText('Ekle');
+      await waitFor(`document.querySelectorAll('.cash-revenue-history article').length===1`, 'persisted cash history');
+      await page.evaluate(`document.querySelector('.cash-revenue-history article button').click()`); await delay(100);
+      assert.equal(await page.evaluate(`document.querySelector('.cash-entry-summary p').textContent`), '5 TL \u00d7 3 + 200 TL \u00d7 2 = 415,00 TL');
+      assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.cash-entry-summary p')).whiteSpace`), 'nowrap');
+      await screenshot('cash-history-expanded-1280');
+      cashEntries = Array.from({length:30},(_,index)=>({...cashEntries[0],id:'cash-ui-'+index}));
+      await page.evaluate(`document.querySelector('button[aria-label="Nakit ge\u00e7mi\u015fini yenile"]').click()`);
+      await waitFor(`document.querySelectorAll('.cash-transactions-panel article').length===30`, 'long cash history');
+      assert.ok(await page.evaluate(`(() => {const list=document.querySelector('.cash-transactions-list');return list.scrollHeight>list.clientHeight && list.clientHeight<=innerHeight*.54+1;})()`), 'Long history scrolls inside its own card');
+      await page.send('Emulation.setDeviceMetricsOverride', { width:360,height:900,deviceScaleFactor:1,mobile:true }); await delay(100);
+      await page.evaluate(`document.querySelector('.cash-transactions-panel article button').click()`); await delay(100);
+      assert.ok(await page.evaluate(`document.documentElement.scrollWidth<=innerWidth && document.querySelector('main').scrollWidth<=document.querySelector('main').clientWidth`), 'Expanded history remains inside narrow card');
+      await screenshot('cash-history-expanded-360');
+      await clickText('Ciro Giri\u015fine D\u00f6n');
+      assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('main input[inputmode="decimal"]')].slice(0,2).map(e=>e.value)`), ['777.25','565']);
+      assert.equal(await page.evaluate(`document.querySelector('main textarea').value`), 'Preserved draft');
+      await clickText('Banknot Ekle');
+      await waitFor(`!!document.querySelector('#banknote-200')`, 'blank next cash count');
+      assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('#cash-banknote-calculator input')].map(e=>e.value)`), Array(6).fill(''));
+      await clickText('Ciro Giri\u015fine D\u00f6n');
+    }
+    if (role === 'admin') {
+      for (const width of [390, 1280]) {
+        await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+        await waitFor(`!!document.querySelector('button[title="Abonelik Şartlarını Düzenle"]')`, 'license action');
+        await page.evaluate(`document.querySelector('button[title="Abonelik Şartlarını Düzenle"]').click()`); await delay(100);
+        assert.ok(await page.evaluate(`!!document.querySelector('#subscription-edit-title') && !document.querySelector('#subscription-edit-title').closest('.fixed')`), 'License editor is a page, not a modal');
+        await screenshot(`license-editor-${width}`);
+        await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')]; const set=(text,value)=>{const input=labels.find(e=>e.textContent.includes(text)).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));};set('Lisans Başlangıç Tarihi','2090-03-01'); })()`); await delay(100);
+        await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')];const input=labels.find(e=>e.textContent.includes('Bitiş / Yenileme Tarihi')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2090-03-08');input.dispatchEvent(new Event('input',{bubbles:true})); const select=labels.find(e=>e.textContent.includes('Lisans Durumu')).querySelector('select');select.value='trial';select.dispatchEvent(new Event('change',{bubbles:true})); })()`); await delay(100);
+        await clickText('Lisansı Kaydet');
+        await waitFor(`!document.querySelector('#subscription-edit-title')`, 'license saved and list restored');
+        assert.equal(company.subscription.startDate, '2090-03-01'); assert.equal(company.subscription.nextBillingDate, '2090-03-08'); assert.equal(company.subscription.status, 'trial');
+        assert.ok(await page.evaluate(`document.querySelector('main').textContent.includes('Deneme')`));
+      }
+      await clickText('Banka Hesapları');
+      await waitFor(`!!document.querySelector('#bank-list-title')`, 'bank accounts page');
+      assert.ok(await page.evaluate(`document.querySelector('main').textContent.includes('Henüz banka hesabı eklenmedi')`));
+      await clickText('Banka Hesabı Ekle');
+      assert.ok(await page.evaluate(`!!document.querySelector('#bank-create-title') && !document.querySelector('#bank-create-title').closest('.fixed')`), 'Bank creation is a page');
+      await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')]; for(const [label,value] of [['Banka Adı','Test Bankası'],['Hesap Sahibi','CiroX Test Hesabı'],['IBAN','TR330006100519786457841326']]) { const input=labels.find(e=>e.textContent.includes(label)).querySelector('input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value); input.dispatchEvent(new Event('input',{bubbles:true})); } })()`); await delay(100);
+      await clickText('Banka Hesabını Kaydet');
+      await waitFor(`!!document.querySelector('#bank-list-title')`, 'bank saved');
+      assert.equal(data.bankAccounts.length, 1);
+      await clickText('Geri Dön'); await clickText('Tahsil Et');
+      await waitFor(`!!document.querySelector('#collection-title')`, 'collection page');
+      assert.ok(await page.evaluate(`!document.querySelector('#collection-title').closest('.fixed')`), 'Collection is a page');
+      await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')]; const input=labels.find(e=>e.textContent.includes('Tahsil Edilen Tutar')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'100.50'); input.dispatchEvent(new Event('input',{bubbles:true})); const select=labels.find(e=>e.textContent.includes('Tutarın Yattığı')).querySelector('select');select.value='bank-ui-test';select.dispatchEvent(new Event('change',{bubbles:true})); document.querySelector('input[type="checkbox"]').click(); })()`); await delay(100);
+      await screenshot('collection-page-1280');
+      await clickText('Tahsilatı Kaydet');
+      await waitFor(`!document.querySelector('#collection-title')`, 'collection saved');
+      assert.equal(data.payments.length, 1); assert.equal(data.payments[0].amount, 100.5);
+      assert.equal(data.bankAccounts[0].totalCollected, 100.5);
+      await clickText('Banka Hesapları'); await clickText('Yenile'); await delay(100);
+      assert.ok(await page.evaluate(`document.querySelector('main').textContent.includes('100,50')`), 'Bank total appears in UI');
+      await screenshot('bank-accounts-1280');
+      await page.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: true }); await delay(100);
+      assert.ok(await page.evaluate(`document.documentElement.scrollWidth <= innerWidth`), 'Bank page does not overflow on mobile');
+      await screenshot('bank-accounts-390');
+      await clickText('Banka Hesabı Ekle'); await screenshot('bank-create-390');
+      await clickText('Banka Hesaplarına Dön'); await clickText('Geri Dön');
+      await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+      await clickText('İşletme Yönetimi', 'aside nav button'); await delay(100);
+      await clickText('İşletme Ekle');
+      await waitFor(`!!document.querySelector('#establishment-username')`, 'establishment username');
+      await page.evaluate(`(() => { const input=document.querySelector('#establishment-username');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'SALIM');input.dispatchEvent(new Event('input',{bubbles:true})); })()`); await delay(100);
+      assert.equal(await page.evaluate(`document.querySelector('#establishment-username').value`), 'salim');
+      assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('#establishment-username')).textTransform`), 'none');
+    }
   }
   assert.deepEqual(errors, [], 'Browser runtime errors');
-  assert.deepEqual(requests.filter(request => request.method !== 'GET'), [], 'Layout checks must not write data');
+  assert.deepEqual(requests.filter(request => request.method !== 'GET' && !['/subscription', '/bank-accounts', '/collections', '/cash-entries'].some(endpoint => request.path.endsWith(endpoint))), [], 'Only isolated fixture writes are permitted');
   await writeFile(path.join(output, 'results.json'), JSON.stringify({ browser: version.Browser, results, requests, errors }, null, 2));
   console.log(`PASS: ${results.length} layout checks at 9 widths; screenshots in ${output}`);
 } catch (error) {

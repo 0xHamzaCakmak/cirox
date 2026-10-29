@@ -11,6 +11,7 @@ import { readableBranch, writableBranch } from '../services/branch-access';
 import { publicReceipt, revenueRecords, type ReceiptRow } from '../services/revenue';
 import { storeReceipt, readReceipt, removeReceiptObject } from '../services/receipt-storage';
 import { recordBranchActivity } from '../services/notifications';
+import { recordManualCash } from '../services/cash-revenue';
 
 export const revenueRouter = Router();
 revenueRouter.use(requireAuth);
@@ -20,6 +21,7 @@ const schema = z.object({
     const date = new Date(value + 'T12:00:00Z');
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= '1970-01-01' && value <= '2100-12-31';
   }), creditCard: money, cash: money, online: money, other: money,
+  cashExpected: money.optional(),
   notes: z.string().max(5000).default(''), receiptIds: z.array(z.string().uuid()).max(8).default([]),
 });
 revenueRouter.get('/revenue', asyncRoute(async (req, res) => {
@@ -36,7 +38,9 @@ revenueRouter.post('/revenue', asyncRoute(async (req, res) => {
   if (new Set(input.receiptIds).size !== input.receiptIds.length) throw new HttpError(400, 'Aynı fotoğraf birden fazla eklenemez.');
   const id = await appDataSource.transaction(async manager => {
     await manager.findOneOrFail(BranchEntity, { where: { id: branch.id }, lock: { mode: 'pessimistic_write' } });
-    const existing: { id: string }[] = await manager.query('SELECT id FROM daily_revenues WHERE branch_id=? AND date=?', [branch.id, input.date]);
+    const existing: { id: string; cash: string }[] = await manager.query('SELECT id,cash FROM daily_revenues WHERE branch_id=? AND date=?', [branch.id, input.date]);
+    const oldCash = Number(existing[0]?.cash || 0);
+    if (input.cashExpected !== undefined && Math.round(input.cashExpected * 100) !== Math.round(oldCash * 100)) throw new HttpError(409, 'Nakit tutarı başka bir işlemle güncellendi. Nakit geçmişinden güncel tutarı yükleyip tekrar kaydedin.', 'CASH_CONFLICT');
     const id = existing[0]?.id ?? randomUUID();
     for (const receiptId of input.receiptIds) {
       const receipts: ReceiptRow[] = await manager.query('SELECT * FROM receipt_files WHERE id=? AND branch_id=? AND company_id=? FOR UPDATE', [receiptId, branch.id, branch.companyId]);
@@ -49,6 +53,7 @@ revenueRouter.post('/revenue', asyncRoute(async (req, res) => {
     [id, branch.companyId, branch.id, input.date, ...[input.creditCard, input.cash, input.online, input.other].map(value => (Math.round(value * 100) / 100).toFixed(2)), input.notes, user.id]);
     await manager.query('UPDATE receipt_files SET revenue_id=NULL WHERE revenue_id=?', [id]);
     for (const receiptId of input.receiptIds) await manager.query('UPDATE receipt_files SET revenue_id=? WHERE id=?', [id, receiptId]);
+    await recordManualCash(manager, { revenueId: id, companyId: branch.companyId, branchId: branch.id, date: input.date, difference: (Math.round(input.cash * 100) - Math.round(oldCash * 100)) / 100 }, user);
     await recordBranchActivity(manager, branch.id, user, {
       kind: existing.length ? 'revenue_updated' : 'revenue_created', tone: 'income',
       title: existing.length ? 'Günlük ciro güncellendi' : 'Günlük ciro kaydedildi',

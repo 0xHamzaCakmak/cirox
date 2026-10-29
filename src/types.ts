@@ -39,6 +39,14 @@ export interface CompanySubscription {
 }
 
 export interface PaymentRecord {
+  bankAccountId?: string;
+  bankName?: string;
+  accountName?: string;
+  iban?: string;
+  currency?: string;
+  receiptNumber?: string;
+  recordedBy?: string;
+  renewedUntil?: string | null;
   id: string;
   companyId: string;
   companyName: string;
@@ -50,6 +58,15 @@ export interface PaymentRecord {
   invoiceNumber: string;
   description: string;
 }
+
+export interface BankAccount {
+  id: string; bankName: string; accountName: string; iban: string; branchCode: string; currency: string;
+  notes: string; isActive: boolean; totalCollected: number; paymentCount: number; createdAt: string;
+}
+export interface BankAccountInput { bankName: string; accountName: string; iban: string; branchCode: string; currency: 'TRY'; notes: string }
+export interface CollectionOptions { date: string; bankAccountId: string | null; receiptNumber: string; renewLicense: boolean; clientRequestId: string }
+
+export type SubscriptionUpdate = Pick<CompanySubscription, 'planName' | 'price' | 'branchLimit' | 'billingMethod' | 'billingCycle' | 'status' | 'startDate' | 'nextBillingDate'>;
 
 export interface Company {
   kind?: 'center' | 'business';
@@ -143,6 +160,7 @@ export interface Branch {
 }
 
 export interface DailyRevenueRecord {
+  cashExpected?: number;
   receipts?: ReceiptAttachment[];
   receiptIds?: string[];
   updatedAt?: string;
@@ -159,6 +177,12 @@ export interface DailyRevenueRecord {
   notes?: string;
   submittedBy: string;
   createdAt: string;
+}
+
+export type CashBanknotes = Record<5 | 10 | 20 | 50 | 100 | 200, number>;
+export interface CashRevenueEntry {
+  id: string; branchId: string; date: string; kind: 'banknotes' | 'manual_adjustment' | 'opening_balance';
+  amount: number; banknotes: CashBanknotes | null; actorName: string; note: string; createdAt: string;
 }
 
 export interface ReceiptAttachment { id: string; url: string; fileName: string }

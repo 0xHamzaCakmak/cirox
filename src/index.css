@@ -12,6 +12,42 @@
 }
 
 .settings-page { max-width: none; }
+.app-shell main .cash-revenue-history .cash-banknote-row.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell main .cash-revenue-history .cash-history-stats.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Compact banknote counter without changing the rest of the revenue form. */
+.cash-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.cash-workspace.cash-workspace-readonly { grid-template-columns: minmax(0, 1fr); }
+.cash-workspace > * { min-width: 0; margin: 0; }
+.cash-banknote-panel { width: 100%; }
+.cash-transactions-panel { min-width: 0; overflow: hidden; }
+.cash-transactions-list { max-height: min(28rem, 54dvh); overflow-y: auto; overscroll-behavior: contain; margin-top: 8px; scrollbar-gutter: stable; }
+.cash-transactions-panel :is(h3, p, span, strong) { overflow-wrap: anywhere; }
+.cash-transactions-panel .cash-entry-summary p { overflow-wrap: normal; }
+.cash-transactions-panel article > button { padding: 8px; gap: 6px; }
+.cash-transactions-panel article > button > span { min-width: 0; max-width: 100%; }
+.cash-banknote-panel > button { min-height: 28px; font-size: 13px; }
+.cash-banknote-panel #cash-banknote-calculator { margin-top: 6px; padding-top: 8px; }
+.cash-banknote-panel #cash-banknote-calculator > * + * { margin-top: 8px; }
+.cash-banknote-panel #cash-banknote-calculator > p { font-size: 11px; line-height: 1.4; }
+.cash-banknote-panel fieldset > * + * { margin-top: 4px; }
+.cash-banknote-panel .cash-banknote-row { gap: 4px; padding: 4px; border-radius: 8px; font-size: 12px; }
+.cash-banknote-panel .cash-banknote-row svg { width: 12px; height: 12px; }
+.cash-banknote-panel .cash-banknote-row input { min-height: 28px; height: 28px; padding: 2px 6px; font-size: 14px; border-radius: 6px; }
+.cash-banknote-panel #cash-banknote-calculator > div:last-child { padding: 6px; gap: 6px; }
+.cash-banknote-panel #cash-banknote-calculator > div:last-child output { margin-top: 2px; font-size: 16px; }
+.cash-banknote-panel button[type="submit"] { min-height: 28px; padding: 4px 12px; font-size: 12px; }
+@media (max-width: 767px) {
+  .cash-workspace { gap: 8px; }
+  .cash-transactions-panel { padding: 8px; }
+  .cash-transactions-panel h3 { font-size: 12px; }
+  .cash-transactions-panel article > button { font-size: 11px; }
+  .cash-banknote-panel > button { font-size: 11px; gap: 4px; }
+  .cash-banknote-panel > button > span { min-width: 0; gap: 4px; }
+  .cash-banknote-panel .cash-banknote-row { font-size: 10px; padding: 3px; gap: 3px; }
+  .cash-banknote-panel .cash-banknote-row label { gap: 2px; }
+  .cash-banknote-panel .cash-banknote-row label svg { display: none; }
+  .cash-banknote-panel .cash-banknote-row input { font-size: 16px; }
+}
 .settings-page input, .settings-page select { min-width: 0; max-width: 100%; }
 @media (max-width: 767px) {
   .settings-page input:not([type="checkbox"]), .settings-page select { font-size: 1rem; min-height: 2.75rem; }

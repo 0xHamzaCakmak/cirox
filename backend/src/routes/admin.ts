@@ -51,6 +51,32 @@ adminRouter.get('/accounts', asyncRoute(async (_req, res) => {
 }));
 
 const resetPasswordSchema = z.object({ newPassword: z.string().min(8).max(256) }).strict();
+const licenseDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
+  const date = new Date(value + 'T12:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= '1970-01-01' && value <= '2100-12-31';
+});
+const subscriptionSchema = z.object({
+  planName: text(64), price: z.number().finite().min(0).max(9999999999.99).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.0001),
+  branchLimit: z.number().int().min(1).max(10000), billingMethod: z.enum(['bank_transfer', 'credit_card', 'manual']),
+  billingCycle: z.enum(['monthly', 'yearly']), status: z.enum(['active', 'trial', 'passive', 'past_due']),
+  startDate: licenseDate, nextBillingDate: licenseDate,
+}).strict().refine(input => input.nextBillingDate > input.startDate);
+adminRouter.post('/companies/:companyId/subscription', asyncRoute(async (req, res) => {
+  const companyId = z.string().uuid().parse(req.params.companyId);
+  const parsed = subscriptionSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError(400, 'Lisans alanlarını kontrol edin. Bedel negatif olamaz, limit 1–10000 arasında olmalı ve bitiş tarihi başlangıçtan sonra gelmelidir.');
+  const input = parsed.data;
+  await appDataSource.transaction(async manager => {
+    const company = await manager.findOne(CompanyEntity, { where: { id: companyId }, lock: { mode: 'pessimistic_write' } });
+    if (!company) throw new HttpError(404, 'İşletme veya merkez hesabı bulunamadı.');
+    await manager.update(CompanyEntity, company.id, {
+      planName: input.planName, licensePrice: input.price.toFixed(2), branchLimit: input.branchLimit,
+      billingMethod: input.billingMethod, billingCycle: input.billingCycle, status: input.status,
+      startDate: input.startDate, nextBillingDate: input.nextBillingDate,
+    });
+  });
+  res.json({ bootstrap: await bootstrapData(res.locals.user as UserRow) });
+}));
 const accountProfileSchema = z.object({
   name: text(128), username, email: z.string().trim().toLowerCase().email().max(128),
   phone: z.string().trim().max(32), newPassword: z.string().min(8).max(256).optional(),

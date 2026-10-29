@@ -58,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       id: 'admin_billing' as PageTab,
       label: 'Abonelik Tahsilatları',
       icon: CreditCard,
-      badge: 'Sanal POS',
+      badge: 'Tahsilat',
     },
   ];
 

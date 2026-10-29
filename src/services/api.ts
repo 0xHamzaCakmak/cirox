@@ -1,6 +1,6 @@
-import type { Branch, Company, User, DailyRevenueRecord, ExpenseRecord, ExpenseCategory, Staff, StaffPaymentHistory } from '../types';
+import type { Branch, Company, User, DailyRevenueRecord, ExpenseRecord, ExpenseCategory, Staff, StaffPaymentHistory, BankAccount, PaymentRecord } from '../types';
 
-export interface BootstrapData { user: User; companies: Company[]; branches: Branch[]; managedUsers?: User[]; dailyRevenueRecords?: DailyRevenueRecord[];
+export interface BootstrapData { user: User; companies: Company[]; branches: Branch[]; bankAccounts?: BankAccount[]; payments?: PaymentRecord[]; managedUsers?: User[]; dailyRevenueRecords?: DailyRevenueRecord[];
   expenses?: ExpenseRecord[]; expenseCategories?: ExpenseCategory[]; staffList?: Staff[]; staffPayments?: StaffPaymentHistory[] }
 export interface EstablishmentResult {
   centerCompanyId: string | null;

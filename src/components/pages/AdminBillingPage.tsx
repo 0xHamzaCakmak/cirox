@@ -18,20 +18,17 @@ import {
   Building2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { BillingMethod } from '../../types';
+import { AdminCollectionPage } from './AdminCollectionPage';
+import { AdminBankAccountsPage } from './AdminBankAccountsPage';
 
 export const AdminBillingPage: React.FC = () => {
-  const { payments, companies, chargeCompany, setActiveTab } = useApp();
+  const { payments, companies, setActiveTab } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [methodFilter, setMethodFilter] = useState<'all' | 'credit_card' | 'bank_transfer'>('all');
-  const [showManualModal, setShowManualModal] = useState(false);
+  const [methodFilter, setMethodFilter] = useState<'all' | 'credit_card' | 'bank_transfer' | 'manual'>('all');
+  const [showCollectionPage, setShowCollectionPage] = useState(false);
 
-  // Manual payment form
-  const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id || '');
-  const [amount, setAmount] = useState<number>(5000);
-  const [method, setMethod] = useState<BillingMethod>('bank_transfer');
-  const [notes, setNotes] = useState('');
+  const [showBankAccountsPage, setShowBankAccountsPage] = useState(false);
 
   // Total collected calculation
   const totalCollected = useMemo(() => {
@@ -60,14 +57,8 @@ export const AdminBillingPage: React.FC = () => {
     });
   }, [payments, searchTerm, methodFilter]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCompanyId || amount <= 0) return;
-
-    chargeCompany(selectedCompanyId, amount, method, notes);
-    setShowManualModal(false);
-    setNotes('');
-  };
+  if (showBankAccountsPage) return <AdminBankAccountsPage onBack={() => setShowBankAccountsPage(false)} />;
+  if (showCollectionPage) return <AdminCollectionPage onBack={() => setShowCollectionPage(false)} onManageBanks={() => setShowBankAccountsPage(true)} />;
 
   return (
     <div className="space-y-6">
@@ -84,11 +75,12 @@ export const AdminBillingPage: React.FC = () => {
               </h2>
             </div>
             <p className="text-xs text-zinc-400 max-w-2xl">
-              Tüm merkez işletmelerinden otomatik kredi kartı çekimi ve merkez banka havalesi ile tahsil edilen yazılım lisans bedellerinin dökümü ve fatura geçmişi.
+              İşletme ve merkez hesaplarından tahsil edilen lisans bedelleri, ödeme yolları ve banka kayıtları.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
+            <button onClick={() => setShowBankAccountsPage(true)} className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-zinc-200"><Building className="h-4 w-4 text-indigo-400" />Banka Hesapları</button>
             <button
               onClick={() => setActiveTab('admin_tenants')}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-semibold text-xs transition-all border border-zinc-700 shadow-xs"
@@ -98,7 +90,7 @@ export const AdminBillingPage: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setShowManualModal(true)}
+              onClick={() => setShowCollectionPage(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-all shadow-lg shadow-emerald-500/20"
             >
               <Plus className="w-4 h-4" />
@@ -123,7 +115,7 @@ export const AdminBillingPage: React.FC = () => {
 
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
           <div className="flex items-center justify-between text-zinc-400 mb-2">
-            <span className="text-xs font-medium">Otomatik Kart Çekimi (Sanal POS)</span>
+            <span className="text-xs font-medium">Kaydedilen Kart Tahsilatları</span>
             <CreditCard className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-2xl font-bold text-indigo-300 font-mono">
@@ -150,7 +142,7 @@ export const AdminBillingPage: React.FC = () => {
           <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="İşletme adı, fatura no veya dekont ara..."
+            placeholder="İşletme adı, referans veya dekont ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-9 pr-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
@@ -167,7 +159,8 @@ export const AdminBillingPage: React.FC = () => {
               className="bg-transparent text-zinc-200 text-xs focus:outline-none cursor-pointer"
             >
               <option value="all" className="bg-zinc-900">Tümü</option>
-              <option value="credit_card" className="bg-zinc-900">Sanal POS Kart</option>
+              <option value="credit_card" className="bg-zinc-900">Kart Tahsilatı</option>
+              <option value="manual" className="bg-zinc-900">Nakit / Elden</option>
               <option value="bank_transfer" className="bg-zinc-900">Banka Havale</option>
             </select>
           </div>
@@ -190,7 +183,7 @@ export const AdminBillingPage: React.FC = () => {
               <tr className="border-b border-zinc-800 bg-zinc-950/60 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                 <th className="py-3.5 px-4">Tarih & Saat</th>
                 <th className="py-3.5 px-4">İşletme / Kurum</th>
-                <th className="py-3.5 px-4">Fatura / Belge No</th>
+                <th className="py-3.5 px-4">Referans / Dekont No</th>
                 <th className="py-3.5 px-4">Ödeme Yöntemi</th>
                 <th className="py-3.5 px-4">Açıklama / Not</th>
                 <th className="py-3.5 px-4">Tutar</th>
@@ -224,12 +217,12 @@ export const AdminBillingPage: React.FC = () => {
                     {p.method === 'credit_card' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[11px] font-medium">
                         <CreditCard className="w-3 h-3 text-indigo-400" />
-                        <span>Sanal POS Kart</span>
+                        <span>Kart Tahsilatı</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[11px] font-medium">
                         <Building className="w-3 h-3 text-amber-400" />
-                        <span>Banka Havalesi</span>
+                        <span>{p.method === 'manual' ? 'Nakit / Elden' : 'Banka Havalesi'}</span>
                       </span>
                     )}
                   </td>
@@ -255,103 +248,7 @@ export const AdminBillingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Manual Payment Modal */}
-      {showManualModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Plus className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-zinc-100">Manuel Tahsilat / Dekont Kaydet</h3>
-              </div>
-              <button
-                onClick={() => setShowManualModal(false)}
-                className="text-zinc-400 hover:text-zinc-200 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <form onSubmit={handleManualSubmit} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Ödeme Yapan Merkez İşletmesi *
-                </label>
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500"
-                >
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id} className="bg-zinc-900">
-                      {c.name} ({c.code}) - {(c.subscription?.price ?? 0).toLocaleString('tr-TR')} ₺/ay
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Tahsil Tutarı (₺) *
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={amount}
-                    onChange={(e) => setAmount(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Ödeme Yolu
-                  </label>
-                  <select
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value as BillingMethod)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="bank_transfer">Banka Havale / EFT</option>
-                    <option value="credit_card">Sanal POS Kredi Kartı</option>
-                    <option value="manual">Nakit / Elden</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                  Açıklama / Dekont No
-                </label>
-                <input
-                  type="text"
-                  placeholder="Örn: Garanti BBVA Dekont No: 994821"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowManualModal(false)}
-                  className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg shadow-emerald-500/20"
-                >
-                  Tahsilatı Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
