@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
-import { api, advanceSessionVersion, type BootstrapData, type EstablishmentResult } from '../services/api';
+import { api, advanceSessionVersion, type BootstrapData, type EstablishmentResult, type CenterAccountInput, type CenterAccountResult } from '../services/api';
 import { EMPTY_BRANCH, EMPTY_COMPANY } from '../data/emptyData';
 import { createClientId } from '../services/clientId';
 import { homePage, resolvePageForRole } from '../data/pageAccess';
+import { adminBranchOptions, adminSelectedBranch } from '../data/adminSelection';
+import { useMobileViewport } from '../hooks/useMobileViewport';
 import {
   Branch,
+  BranchListSort,
   BranchSettings,
   OwnProfileUpdate,
   DailyRevenueRecord,
@@ -25,6 +28,20 @@ import {
 
 
 interface AppContextType {
+  branchListSort: BranchListSort;
+  setBranchListSort: (sort: BranchListSort) => void;
+  branchListViewMode: 'grid' | 'table';
+  setBranchListViewMode: (mode: 'grid' | 'table') => void;
+  viewUser: User | null;
+  adminCenterId: string;
+  selectableBranches: Branch[];
+  selectAdminCenter: (id: string) => void;
+  selectAdminBranch: (id: string) => void;
+  returnToAdmin: () => void;
+  isAdminCustomerView: boolean;
+  adminBranches: Branch[];
+  createCenterAccount: (data: CenterAccountInput) => Promise<string>;
+  updateBranchCenter: (branchId: string, centerCompanyId: string | null) => Promise<void>;
   saveBranchSettings: (data: BranchSettings) => Promise<void>;
   saveOwnProfile: (data: OwnProfileUpdate) => Promise<void>;
   currentUser: User | null;
@@ -112,13 +129,19 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const mobileViewport = useMobileViewport();
   // Companies / Tenants State
   const [companies, setCompanies] = useState<Company[]>([]);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string>('');
+  const [adminCenterId, setAdminCenterId] = useState('');
+  const [managedUsers, setManagedUsers] = useState<User[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [branchListViewMode, setBranchListViewMode] = useState<'grid' | 'table'>('table');
+  const [mobileBranchListViewMode, setMobileBranchListViewMode] = useState<'grid' | 'table'>('grid');
+  const [branchListSort, setBranchListSort] = useState<BranchListSort>('revenue-desc');
 
   const activeCompany = useMemo(() => {
-    return companies.find((c) => c.id === activeCompanyId) || companies[0] || EMPTY_COMPANY;
+    return companies.find((c) => c.id === activeCompanyId) || EMPTY_COMPANY;
   }, [companies, activeCompanyId]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -132,15 +155,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTabState] = useState<PageTab>('admin_tenants');
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+
+  const selectableBranches = useMemo(() => currentUser?.role === 'admin'
+    ? adminBranchOptions(allBranches, adminCenterId)
+    : allBranches.filter(branch => branch.companyId === activeCompanyId || branch.centerCompanyId === activeCompanyId),
+  [allBranches, adminCenterId, activeCompanyId, currentUser?.role]);
   
   // Scoped branches for currently active center / company
   const branches = useMemo(() => {
-    const list = allBranches.filter((b) => (currentUser?.role === 'admin' && !activeCompanyId)
-      || b.companyId === activeCompanyId || b.centerCompanyId === activeCompanyId);
-    return list;
-  }, [allBranches, activeCompanyId, currentUser?.role]);
+    if (currentUser?.role === 'admin') return selectedBranchId
+      ? selectableBranches.filter(branch => branch.id === selectedBranchId)
+      : adminCenterId ? selectableBranches : [];
+    return selectableBranches;
+  }, [selectableBranches, selectedBranchId, adminCenterId, currentUser?.role]);
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [allDailyRevenueRecords, setAllDailyRevenueRecords] = useState<DailyRevenueRecord[]>([]);
   const [allExpenses, setAllExpenses] = useState<ExpenseRecord[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
@@ -151,22 +180,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Scoped data items
   const dailyRevenueRecords = useMemo(() => {
     const activeBranchIds = new Set(branches.map((b) => b.id));
-    return allDailyRevenueRecords.filter((r) => r.companyId === activeCompanyId || activeBranchIds.has(r.branchId));
+    return allDailyRevenueRecords.filter((r) => activeBranchIds.has(r.branchId));
   }, [allDailyRevenueRecords, branches, activeCompanyId]);
 
   const expenses = useMemo(() => {
     const activeBranchIds = new Set(branches.map((b) => b.id));
-    return allExpenses.filter((e) => e.companyId === activeCompanyId || activeBranchIds.has(e.branchId));
+    return allExpenses.filter((e) => activeBranchIds.has(e.branchId));
   }, [allExpenses, branches, activeCompanyId]);
 
   const staffList = useMemo(() => {
     const activeBranchIds = new Set(branches.map((b) => b.id));
-    return allStaff.filter((s) => s.companyId === activeCompanyId || activeBranchIds.has(s.branchId));
+    return allStaff.filter((s) => activeBranchIds.has(s.branchId));
   }, [allStaff, branches, activeCompanyId]);
 
   const selectedBranch = useMemo(() => {
-    return branches.find((b) => b.id === selectedBranchId) || branches[0] || EMPTY_BRANCH;
+    return branches.find((b) => b.id === selectedBranchId) || (currentUser?.role === 'admin' ? EMPTY_BRANCH : branches[0]) || EMPTY_BRANCH;
   }, [branches, selectedBranchId, allBranches]);
+
+  const viewUser = useMemo(() => {
+    if (currentUser?.role !== 'admin') return currentUser;
+    const branch = adminSelectedBranch(allBranches, adminCenterId, selectedBranchId);
+    if (branch) return managedUsers.find(user => user.role === 'sube' && user.branchId === branch.id) || {
+      id: branch.id, role: 'sube' as const, branchId: branch.id, branchName: branch.name,
+      companyId: branch.companyId, name: branch.managerName || branch.name, username: branch.username,
+      email: branch.loginEmail || '', phone: branch.phone, title: branch.name + ' Sorumlusu',
+    };
+    if (adminCenterId) return managedUsers.find(user => user.role === 'merkez' && user.companyId === adminCenterId) || {
+      id: adminCenterId, role: 'merkez' as const, companyId: adminCenterId, name: activeCompany.ownerName,
+      email: activeCompany.ownerEmail, phone: activeCompany.ownerPhone, title: activeCompany.name,
+    };
+    return currentUser;
+  }, [currentUser, managedUsers, allBranches, selectedBranchId, adminCenterId, activeCompany]);
+  const isAdminCustomerView = currentUser?.role === 'admin' && viewUser?.role !== 'admin' && !activeTab.startsWith('admin_');
+
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') return;
+    if (adminCenterId && !companies.some(company => company.id === adminCenterId && company.kind === 'center')) {
+      setAdminCenterId(''); setActiveCompanyIdState(''); setSelectedBranchId('');
+      setActiveTabState(previous => previous.startsWith('admin_') ? previous : 'admin_businesses');
+    } else if (selectedBranchId && !adminSelectedBranch(allBranches, adminCenterId, selectedBranchId)) {
+      setSelectedBranchId(''); setActiveCompanyIdState(adminCenterId);
+      setActiveTabState(previous => previous.startsWith('admin_') ? previous : adminCenterId ? 'dashboard' : 'admin_businesses');
+    }
+  }, [currentUser?.role, companies, allBranches, adminCenterId, selectedBranchId]);
+
+  const selectAdminCenter = (id: string) => {
+    if (currentUser?.role !== 'admin' || (id && !companies.some(company => company.id === id && company.kind === 'center'))) return;
+    setAdminCenterId(id); setActiveCompanyIdState(id); setSelectedBranchId('');
+    setActiveTabState(id ? 'dashboard' : 'admin_businesses');
+  };
+  const selectAdminBranch = (id: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const branch = selectableBranches.find(item => item.id === id);
+    if (id && !branch) return;
+    setSelectedBranchId(id); setActiveCompanyIdState(branch?.companyId || adminCenterId);
+    setActiveTabState(id ? 'revenue_entry' : adminCenterId ? 'dashboard' : 'admin_businesses');
+  };
+  const returnToAdmin = () => {
+    if (currentUser?.role !== 'admin') return;
+    setAdminCenterId(''); setActiveCompanyIdState(''); setSelectedBranchId(''); setActiveTabState('admin_tenants');
+  };
 
   const showNotification = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setNotification({ message, type });
@@ -179,12 +252,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sessionMode.current === 'live' && currentUser?.role !== 'admin') return;
     const targetComp = companies.find((c) => c.id === id);
     if (!targetComp) return;
+    if (currentUser?.role === 'admin') {
+      if (targetComp.kind === 'center') selectAdminCenter(id);
+      else {
+        const branch = allBranches.find(item => item.companyId === id);
+        setAdminCenterId(branch?.centerCompanyId || ''); setActiveCompanyIdState(id); setSelectedBranchId(branch?.id || '');
+        setActiveTabState(branch ? 'revenue_entry' : 'admin_businesses');
+      }
+      return;
+    }
     setActiveCompanyIdState(id);
 
-    const targetBranches = allBranches.filter((b) => b.companyId === id);
-    if (targetBranches.length > 0) {
-      setSelectedBranchId(targetBranches[0].id);
-    }
+    const targetBranches = allBranches.filter((b) => b.companyId === id || b.centerCompanyId === id);
+    setSelectedBranchId(targetBranches[0]?.id || '');
 
     if (currentUser) {
       setCurrentUser((prev) =>
@@ -203,16 +283,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setActiveTab = (tab: PageTab) => {
     if (sessionMode.current !== 'live' || !currentUser) return;
     const allowed = resolvePageForRole(currentUser.role, tab);
-    if (allowed) setActiveTabState(allowed);
+    if (allowed) {
+      if (currentUser.role === 'admin' && allowed.startsWith('admin_')) {
+        setAdminCenterId(''); setActiveCompanyIdState(''); setSelectedBranchId('');
+      }
+      setActiveTabState(allowed);
+    }
   };
 
-  const applyBootstrap = (data: BootstrapData) => {
+  const applyBootstrap = (data: BootstrapData, preserveNavigation = false) => {
     advanceSessionVersion();
     sessionMode.current = 'live';
     setCompanies(data.companies);
     setAllBranches(data.branches);
-    setActiveCompanyIdState(data.user.companyId || data.companies[0]?.id || '');
-    setSelectedBranchId(data.user.branchId || data.branches[0]?.id || '');
+    if (!preserveNavigation) {
+      setBranchListViewMode('table');
+      setMobileBranchListViewMode('grid');
+      setBranchListSort('revenue-desc');
+      setAdminCenterId('');
+      setActiveCompanyIdState(data.user.role === 'admin' ? '' : data.user.companyId || data.companies[0]?.id || '');
+      setSelectedBranchId(data.user.role === 'admin' ? '' : data.user.branchId || data.branches[0]?.id || '');
+    }
     setAllDailyRevenueRecords(data.dailyRevenueRecords ?? []);
     setAllExpenses(data.expenses ?? []);
     setAllStaff(data.staffList ?? []);
@@ -220,8 +311,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setExpenseCategories(data.expenseCategories ?? []);
     setRegisteredUsers([]);
+    setManagedUsers(data.managedUsers ?? []);
     setCurrentUser(data.user);
-    setActiveTabState(homePage(data.user.role));
+    if (!preserveNavigation) setActiveTabState(homePage(data.user.role));
   };
 
   useEffect(() => {
@@ -239,6 +331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sessionMode.current !== 'live') return;
       ++authEpoch.current; advanceSessionVersion(); sessionMode.current = 'none';
       setCurrentUser(null); setCompanies([]); setAllBranches([]); setAllDailyRevenueRecords([]);
+      setAdminCenterId(''); setManagedUsers([]);
       setAllExpenses([]); setAllStaff([]); setStaffPayments([]); setPayments([]); setExpenseCategories([]); setRegisteredUsers([]);
       setActiveCompanyIdState(''); setSelectedBranchId('');
     };
@@ -275,6 +368,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     sessionMode.current = 'none';
     setCurrentUser(null);
+    setAdminCenterId(''); setManagedUsers([]);
     setRegisteredUsers([]);
     setCompanies([]);
     setAllBranches([]);
@@ -296,6 +390,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     showNotification('Başka bir hesaba erişmek için o hesabın bilgileriyle giriş yapın.', 'info');
+  };
+
+  const createCenterAccount = async (data: CenterAccountInput) => {
+    if (sessionMode.current !== 'live' || currentUser?.role !== 'admin') throw new Error('Admin oturumu gerekiyor.');
+    const result = await api<CenterAccountResult>('/admin/centers', data);
+    applyBootstrap(result.bootstrap, true);
+    showNotification('Merkez / patron hesabı oluşturuldu. Şubeleri bu hesaba bağlayabilirsiniz.', 'success');
+    return result.companyId;
+  };
+
+  const updateBranchCenter = async (branchId: string, centerCompanyId: string | null) => {
+    if (sessionMode.current !== 'live' || currentUser?.role !== 'admin') throw new Error('Admin oturumu gerekiyor.');
+    const result = await api<BootstrapData>(`/admin/establishments/${encodeURIComponent(branchId)}/center`, { centerCompanyId });
+    applyBootstrap(result, true);
+    showNotification(centerCompanyId ? 'Şube merkeze bağlandı.' : 'Şube merkezden ayrıldı; bağımsız çalışıyor.', 'success');
   };
 
   // Company / Tenant Actions
@@ -728,6 +837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const applyOperationalData = (data: BootstrapData) => {
+    setManagedUsers(data.managedUsers ?? []);
     setAllBranches(data.branches);
     setAllDailyRevenueRecords(data.dailyRevenueRecords ?? []);
     setAllExpenses(data.expenses ?? []);
@@ -749,15 +859,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.user.role !== 'admin') {
             setActiveCompanyIdState(data.user.companyId || ''); setRegisteredUsers([]);
           }
-          setSelectedBranchId(previous => data.user.branchId || (data.branches.some(branch => branch.id === previous) ? previous : data.branches[0]?.id || ''));
+          setSelectedBranchId(previous => data.user.role === 'admin'
+            ? (data.branches.some(branch => branch.id === previous) ? previous : '')
+            : data.user.branchId || (data.branches.some(branch => branch.id === previous) ? previous : data.branches[0]?.id || ''));
           setActiveTabState(previous => resolvePageForRole(data.user.role, previous) || homePage(data.user.role));
         }
       } catch { /* Keep current records if the network is temporarily unavailable. */ }
       finally { refreshing = false; }
     };
     window.addEventListener('focus', refresh);
+    window.addEventListener('cirox:branch-activity', refresh);
     document.addEventListener('visibilitychange', refresh);
-    return () => { disposed = true; window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
+    return () => { disposed = true; window.removeEventListener('focus', refresh); window.removeEventListener('cirox:branch-activity', refresh); document.removeEventListener('visibilitychange', refresh); };
   }, [currentUser?.id]);
   const addExpense = async (data: Omit<ExpenseRecord, 'id' | 'createdAt'>) => {
     if (sessionMode.current === 'live') {
@@ -954,7 +1067,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveBranchSettings = async (data: BranchSettings) => {
     if (sessionMode.current === 'live') {
       const epoch = authEpoch.current;
-      const result = await api<{ bootstrap: BootstrapData }>('/settings/business', data);
+      const result = await api<{ bootstrap: BootstrapData }>('/settings/business', { ...data, ...(currentUser?.role === 'admin' ? { branchId: selectedBranchId } : {}) });
       if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('Şube bilgileri kaydedildi.', 'success'); }
       return;
     }
@@ -964,7 +1077,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveOwnProfile = async (data: OwnProfileUpdate) => {
     if (sessionMode.current === 'live') {
       const epoch = authEpoch.current;
-      const result = await api<{ bootstrap: BootstrapData }>('/settings/profile', data);
+      const { currentPassword, ...adminData } = data;
+      const result = currentUser?.role === 'admin'
+        ? await api<{ bootstrap: BootstrapData }>(`/admin/users/${encodeURIComponent(viewUser?.id || '')}/profile`, adminData)
+        : await api<{ bootstrap: BootstrapData }>('/settings/profile', data);
       if (epoch === authEpoch.current) {
         ++authEpoch.current; advanceSessionVersion();
         applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('Kullanıcı bilgileriniz güncellendi.', 'success');
@@ -977,6 +1093,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        branchListSort, setBranchListSort,
+        branchListViewMode: currentUser?.role === 'merkez' && mobileViewport ? mobileBranchListViewMode : branchListViewMode,
+        setBranchListViewMode: currentUser?.role === 'merkez' && mobileViewport ? setMobileBranchListViewMode : setBranchListViewMode,
+        viewUser, adminCenterId, selectableBranches, selectAdminCenter, selectAdminBranch, returnToAdmin, isAdminCustomerView,
         saveBranchSettings,
         saveOwnProfile,
         currentUser,
@@ -987,9 +1107,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab,
         dailyRevenueRecords,
         expenses,
-        expenseCategories,
+        expenseCategories: expenseCategories.filter(category => !category.branchId || branches.some(branch => branch.id === category.branchId)),
         staffList,
-        staffPayments,
+        staffPayments: staffPayments.filter(payment => branches.some(branch => branch.id === payment.branchId)),
         notification,
         companies,
         activeCompanyId,
@@ -998,6 +1118,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         registeredUsers,
         loginWithCredentials,
         createEstablishmentAndStart,
+        adminBranches: currentUser?.role === 'admin' ? allBranches : [],
+        createCenterAccount,
+        updateBranchCenter,
         setActiveCompanyId,
         createCompany,
         toggleCompanyStatus,
@@ -1005,7 +1128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         chargeCompany,
         logout,
         setActiveTab,
-        setSelectedBranchId,
+        setSelectedBranchId: currentUser?.role === 'admin' ? selectAdminBranch : setSelectedBranchId,
         addDailyRevenue,
         uploadReceipt,
         addExpense,

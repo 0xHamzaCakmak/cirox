@@ -9,6 +9,7 @@ import { readableBranch, writableBranch } from '../services/branch-access';
 import { expenseRecords, branchCategories } from '../services/expenses';
 import type { ReceiptRow } from '../services/revenue';
 import { bootstrapData } from '../services/bootstrap';
+import { recordBranchActivity } from '../services/notifications';
 
 export const expensesRouter = Router();
 expensesRouter.use(requireAuth);
@@ -62,6 +63,10 @@ expensesRouter.post('/expenses', asyncRoute(async (req, res) => {
         input.description || category.name + ' harcaması', input.receiptNumber || null, input.staffId || null, user.id, category.name, category.type,
         basis, paidStaff ? input.staffPaymentType ?? (basis === 'monthly' ? 'maas' : 'yevmiye') : null, paidStaff?.full_name ?? null, paidStaff?.daily_wage ?? null, paidStaff?.monthly_salary ?? null]);
     for (const receiptId of input.receiptIds) await manager.query('UPDATE receipt_files SET expense_id=? WHERE id=?', [id, receiptId]);
+    await recordBranchActivity(manager, branch.id, user, {
+      kind: 'expense_created', tone: 'expense', title: category.type === 'staff_based' ? 'Personel ödemesi kaydedildi' : 'Gider kaydedildi',
+      detail: `${input.date} · ${category.name}${paidStaff ? ' · ' + paidStaff.full_name : ''}`, amount: input.amount,
+    });
     return id;
   });
   const bootstrap = await bootstrapData(user);
@@ -72,6 +77,12 @@ expensesRouter.post('/expenses/:expenseId/delete', asyncRoute(async (req, res) =
   const [row]: { id: string; branch_id: string }[] = await appDataSource.query('SELECT id,branch_id FROM expenses WHERE id=?', [req.params.expenseId]);
   if (!row) throw new HttpError(404, 'Gider bulunamadı.');
   await writableBranch(user, row.branch_id);
-  await appDataSource.query('UPDATE expenses SET deleted_at=CURRENT_TIMESTAMP(3),deleted_by=? WHERE id=? AND deleted_at IS NULL', [user.id, row.id]);
+  await appDataSource.transaction(async manager => {
+    const [current] = await manager.query('SELECT * FROM expenses WHERE id=? FOR UPDATE', [row.id]);
+    if (!current || current.deleted_at) return;
+    await manager.query('UPDATE expenses SET deleted_at=CURRENT_TIMESTAMP(3),deleted_by=? WHERE id=?', [user.id, row.id]);
+    await recordBranchActivity(manager, row.branch_id, user, { kind: 'expense_deleted', tone: 'warning', title: 'Gider kaydı kaldırıldı',
+      detail: current.category_name_snapshot || 'Gider kaydı arşivlendi.', amount: Number(current.amount) });
+  });
   res.json({ bootstrap: await bootstrapData(user) });
 }));

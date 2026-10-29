@@ -1,23 +1,34 @@
 @import "tailwindcss";
+@import "./patron-mobile.css";
+
+/* Keep the full-height mobile login clear of display cutouts. */
+@media (max-width: 767px) {
+  .login-card {
+    padding-top: max(15px, env(safe-area-inset-top));
+    padding-right: max(15px, env(safe-area-inset-right));
+    padding-bottom: max(15px, env(safe-area-inset-bottom));
+    padding-left: max(15px, env(safe-area-inset-left));
+  }
+}
 
 .settings-page { max-width: none; }
 .settings-page input, .settings-page select { min-width: 0; max-width: 100%; }
 @media (max-width: 767px) {
-  .settings-page input:not([type="checkbox"]), .settings-page select { font-size: 16px; min-height: 44px; }
-  .settings-page button { min-height: 44px; }
-  .settings-tabs > button { flex: 1 1 140px; justify-content: center; }
+  .settings-page input:not([type="checkbox"]), .settings-page select { font-size: 1rem; min-height: 2.75rem; }
+  .settings-page button { min-height: 2.75rem; }
+  .settings-tabs > button { flex: 1 1 8.75rem; justify-content: center; }
 }
 
-/* Comfortable touch controls; 16px fields prevent automatic iOS input zoom. */
+/* Comfortable touch controls; 1rem fields prevent automatic iOS input zoom. */
 @media (max-width: 767px) {
   .expense-page input:not([type="checkbox"]):not([type="file"]),
-  .expense-page select, .expense-page textarea { font-size: 16px; min-height: 44px; min-width: 0; max-width: 100%; }
-  .expense-page input[inputmode="decimal"] { font-size: 24px; min-height: 56px; }
+  .expense-page select, .expense-page textarea { font-size: 1rem; min-height: 2.75rem; min-width: 0; max-width: 100%; }
+  .expense-page input[inputmode="decimal"] { font-size: 1.5rem; min-height: 3.5rem; }
   .expense-entry-form > * { min-width: 0; }
-  .expense-header-actions > button { min-height: 44px; flex: 1 1 140px; justify-content: center; }
-  .expense-entry-form button { min-height: 44px; }
-  .expense-actions { position: sticky; bottom: 0; z-index: 20; background: #18181b; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-  .expense-actions > button { min-height: 48px; }
+  .expense-header-actions > button { min-height: 2.75rem; flex: 1 1 8.75rem; justify-content: center; }
+  .expense-entry-form button { min-height: 2.75rem; }
+  .expense-actions { position: sticky; bottom: 0; z-index: 20; background: #18181b; padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+  .expense-actions > button { min-height: 3rem; }
   .expense-actions > button[type="submit"] { flex: 1; }
 }
 
@@ -36,30 +47,30 @@
 
 /* Keep the mobile form unchanged; use the available desktop workspace. */
 @media (min-width: 1024px) {
-  .revenue-entry { max-width: 1600px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; }
+  .revenue-entry { max-width: 100rem; display: flex; flex-direction: column; gap: 0.75rem; padding-bottom: 0.75rem; }
   .revenue-entry > * { margin-block: 0 !important; }
-  .revenue-header { padding: 12px 16px; }
-  .revenue-form-panel { padding: 16px; }
-  .revenue-form { display: flex; flex-direction: column; gap: 12px; }
+  .revenue-header { padding: 0.75rem 1rem; }
+  .revenue-form-panel { padding: 1rem; }
+  .revenue-form { display: flex; flex-direction: column; gap: 0.75rem; }
   .revenue-form > * { margin-block: 0 !important; }
-  .revenue-date-bar { padding-bottom: 10px; }
-  .money-grid { gap: 12px; }
-  .money-cell { padding: 12px; min-width: 0; }
+  .revenue-date-bar { padding-bottom: 0.625rem; }
+  .money-grid { gap: 0.75rem; }
+  .money-cell { padding: 0.75rem; min-width: 0; }
   .money-cell label { min-height: 2.4em; }
-  .revenue-total { padding: 10px 14px; }
-  .revenue-form textarea { resize: vertical; min-height: 48px; }
+  .revenue-total { padding: 0.625rem 0.875rem; }
+  .revenue-form textarea { resize: vertical; min-height: 3rem; }
 }
 @media (min-width: 1280px) {
   .money-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) and (max-height: 760px) {
-  .revenue-entry, .revenue-form { gap: 8px; }
-  .revenue-header, .revenue-form-panel { padding: 10px 12px; }
-  .money-cell { padding: 10px; }
-  .revenue-form .receipt-capture > div:first-child { padding: 8px 10px; }
+  .revenue-entry, .revenue-form { gap: 0.5rem; }
+  .revenue-header, .revenue-form-panel { padding: 0.625rem 0.75rem; }
+  .money-cell { padding: 0.625rem; }
+  .revenue-form .receipt-capture > div:first-child { padding: 0.5rem 0.625rem; }
 }
 
-/* Scoped to the authenticated shell: admin, center and login stay dark. */
+/* Themes are scoped to the authenticated customer shell. */
 .app-shell { color-scheme: dark; }
 @media screen {
   .app-shell[data-theme="light"] {
@@ -98,4 +109,212 @@
   .app-shell[data-theme="light"] :is([class~="text-yellow-300"], [class~="text-yellow-400"], [class~="text-yellow-500"], [class*="text-yellow-400/"]) { color: #854d0e; }
   .app-shell[data-theme="light"] :is([class~="text-orange-300"], [class~="text-orange-400"], [class~="text-orange-500"], [class*="text-orange-400/"]) { color: #c2410c; }
   .app-shell[data-theme="light"] :is([class~="text-teal-300"], [class~="text-teal-400"], [class~="text-teal-500"], [class*="text-teal-400/"]) { color: #0f766e; }
+  /* Center menus, muted captions and native popup options need opaque, contrasting colors. */
+  .app-shell[data-panel="merkez"][data-theme="light"] {
+    --color-zinc-500: #475569;
+    --color-zinc-600: #64748b;
+    --chart-muted: #475569;
+  }
+  .app-shell[data-panel="merkez"][data-theme="light"] :is(input, select, textarea) {
+    color: #0f172a;
+    background-color: #ffffff;
+    border-color: #94a3b8;
+    color-scheme: light;
+  }
+  .app-shell[data-panel="merkez"][data-theme="light"] :is(option, optgroup) { color: #0f172a; background: #ffffff; }
+  .app-shell[data-panel="merkez"][data-theme="light"] :is(input, textarea)::placeholder { color: #475569; opacity: 1; }
+  .app-shell[data-panel="merkez"][data-theme="light"] :is(button, input, select, textarea):focus-visible { outline: 2px solid #0369a1; outline-offset: 2px; }
+  .app-shell[data-panel="merkez"][data-theme="light"] [data-financial-chart] svg :is([stroke="#10b981"], [stroke="#84cc16"]) { stroke: #047857; }
+  .app-shell[data-panel="merkez"][data-theme="light"] [data-financial-chart] svg [stroke="#06b6d4"] { stroke: #0e7490; }
+  .app-shell[data-panel="merkez"][data-theme="light"] [data-financial-chart] svg [stroke="#f43f5e"] { stroke: #be123c; }
+  .app-shell[data-panel="merkez"][data-theme="light"] [data-financial-chart] svg :is([stroke="#f59e0b"], [stroke="#f97316"]) { stroke: #b45309; }
+}
+
+/* Scale rem-based typography, spacing, cards and icons in the branch and center panels.
+   The viewport itself stays full-size; content reflows instead of being clipped. */
+@media screen {
+  html:has(.app-shell[data-ui-scale="enlarged"]) { font-size: 125%; }
+  .app-shell[data-ui-scale="enlarged"] [class~="text-[9px]"] { font-size: .5625rem; }
+  .app-shell[data-ui-scale="enlarged"] [class~="text-[10px]"] { font-size: .625rem; }
+  .app-shell[data-ui-scale="enlarged"] [class~="text-[11px]"] { font-size: .6875rem; }
+
+  .app-shell[data-ui-scale="enlarged"] main {
+    container: panel-content / inline-size;
+    min-width: 0;
+  }
+  .app-shell[data-ui-scale="enlarged"] header {
+    flex-shrink: 0;
+    height: auto;
+    min-height: 4rem;
+    padding-block: .5rem;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+  .app-shell[data-ui-scale="enlarged"] header > .flex { max-width: 100%; }
+  .app-shell[data-ui-scale="enlarged"] header > .flex.shrink-0 { flex-wrap: wrap; }
+  .app-shell[data-ui-scale="enlarged"] header select { min-width: 0; max-width: 12rem; }
+  .app-shell[data-ui-scale="enlarged"] header h1 { overflow-wrap: anywhere; }
+  .app-shell[data-ui-scale="enlarged"] :is([class~="w-72"], [class~="w-80"]) { max-width: calc(100vw - 1rem); }
+  .app-shell[data-ui-scale="enlarged"] [class~="fixed"][class~="right-6"] { max-width: calc(100vw - 3rem); }
+  .app-shell[data-ui-scale="enlarged"] main :is(.grid, .flex) > * { min-width: 0; }
+  .app-shell[data-ui-scale="enlarged"] main :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+  .app-shell[data-ui-scale="enlarged"] main :is(h1, h2, h3, p, label, button) { overflow-wrap: anywhere; }
+  .app-shell[data-ui-scale="enlarged"] main [class~="justify-between"] { flex-wrap: wrap; }
+  .app-shell[data-ui-scale="enlarged"] main .revenue-header { flex-wrap: wrap; }
+  .app-shell[data-ui-scale="enlarged"] main .money-cell > .flex { flex-wrap: nowrap; }
+  .app-shell[data-ui-scale="enlarged"] main .money-cell > .flex.flex-wrap { flex-wrap: wrap; }
+
+  @container panel-content (width < 70rem) {
+    .app-shell[data-ui-scale="enlarged"] main [class~="lg:grid-cols-5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @container panel-content (width < 56rem) {
+    .app-shell[data-ui-scale="enlarged"] main :is([class~="lg:grid-cols-5"], [class~="sm:grid-cols-4"], [class~="lg:grid-cols-4"], [class~="xl:grid-cols-4"], .money-grid) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container panel-content (width < 42rem) {
+    .app-shell[data-ui-scale="enlarged"] main :is([class~="sm:grid-cols-3"], [class~="md:grid-cols-3"], [class~="lg:grid-cols-3"]) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .app-shell[data-ui-scale="enlarged"] main [class~="lg:grid-cols-2"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .app-shell[data-ui-scale="enlarged"] main [class~="md:flex-row"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+  @container panel-content (width < 42rem) {
+    .app-shell[data-ui-scale="enlarged"] main [class~="lg:col-span-2"] { grid-column: 1 / -1; }
+  }
+  @container panel-content (width < 30rem) {
+    .app-shell[data-ui-scale="enlarged"] main .grid { grid-template-columns: minmax(0, 1fr); }
+    .app-shell[data-ui-scale="enlarged"] main [class~="sm:flex-row"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .app-shell[data-ui-scale="enlarged"] main .revenue-date-bar > .flex { flex-wrap: wrap; }
+  }
+}
+
+/* Center dashboard: the first overview occupies the actual main viewport.
+   The performance table follows it in the same normal scroll flow. */
+.center-dashboard-workspace { padding: .6rem 1rem; }
+/* Patron inspection stays fluid horizontally and scrolls naturally vertically. */
+.patron-branch-inspection { min-width: 0; container: branch-inspection / inline-size; }
+.patron-period-card { padding: 5px 20px; }
+.app-shell main .patron-period-fields > .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell main .patron-period-fields label { display: flex; flex-direction: column; gap: 2px; }
+.app-shell main .patron-period-fields label > * { margin-block: 0; }
+.app-shell main .patron-period-fields :is(input, select) { height: 28px; min-height: 0; padding: 2px 8px; font-size: 12px; line-height: 1.2; }
+.app-shell main .patron-period-fields > p { font-size: 11px; line-height: 1.3; }
+.app-shell main .patron-branch-inspection .patron-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(4px, 1cqw, 17.5px); }
+.app-shell main .patron-branch-inspection .patron-distributions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(6px, 1.2cqw, 25px); }
+.app-shell main .patron-branch-inspection .patron-staff-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(4px, 1cqw, 20px); }
+.app-shell main .patron-branch-inspection .patron-kpis > div,
+.app-shell main .patron-branch-inspection .patron-staff-grid > div { min-width: 0; padding: clamp(6px, 1cqw, 17.5px); overflow-wrap: anywhere; }
+.app-shell main .patron-branch-inspection .patron-kpis .text-xs { font-size: clamp(9px, 1.2cqw, 15px); }
+.app-shell main .patron-branch-inspection .patron-kpis .text-xl { font-size: clamp(14px, 2cqw, 25px); }
+.app-shell main .patron-branch-inspection .patron-staff-grid .text-2xl { font-size: clamp(14px, 2cqw, 30px); }
+.app-shell main .patron-branch-inspection .patron-kpis svg { flex-shrink: 0; }
+.app-shell main .patron-branch-inspection .patron-breakdown-card { min-width: 0; padding: clamp(6px, 1.5cqw, 25px); container: branch-breakdown / inline-size; }
+.app-shell main .patron-branch-inspection .patron-breakdown-card .grid-cols-2 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(2px, 1.5cqw, 10px); }
+.app-shell main .patron-branch-inspection .patron-breakdown-card .grid-cols-2 > div { padding: clamp(3px, 1.6cqw, 12.5px); overflow-wrap: anywhere; }
+.app-shell main .patron-branch-inspection .patron-breakdown-card .grid-cols-2 .text-xs { font-size: clamp(8px, 3cqw, 15px); }
+.app-shell main .patron-branch-inspection .patron-breakdown-card .grid-cols-2 .flex { flex-wrap: wrap; font-size: clamp(7px, 2.6cqw, 12.5px); }
+.branch-responsive-donut { min-width: 0; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.6fr); align-items: center; gap: clamp(4px, 3cqw, 25px); }
+.branch-responsive-donut .donut-legend { min-width: 0; }
+.app-shell main .branch-responsive-donut .donut-legend > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; padding-inline: 0; font-size: clamp(8px, 3cqw, 15px); }
+.branch-responsive-donut .donut-legend > div > div { min-width: 0; gap: 4px; }
+.branch-responsive-donut .donut-legend > div > div:last-child { flex-wrap: wrap; justify-content: flex-end; }
+.branch-responsive-donut .donut-legend span { overflow-wrap: anywhere; }
+.app-shell main .branch-responsive-donut .absolute span { font-size: clamp(6px, 3cqw, 13px); line-height: 1.3; overflow-wrap: anywhere; }
+@container branch-breakdown (width < 230px) {
+  .branch-responsive-donut { grid-template-columns: minmax(0, 1fr); }
+  .branch-responsive-donut > div:first-child { justify-self: center; max-width: 100px !important; }
+}
+.center-dashboard-overview {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: .65rem;
+  min-width: 0;
+  height: calc(100dvh - 7rem);
+  container: dashboard-overview / size;
+}
+.center-dashboard-heading h2 { font-size: .95rem; line-height: 1.3; }
+.center-dashboard-overview[data-heading="false"] { grid-template-rows: auto minmax(0, 1fr); }
+.center-dashboard-description { margin-top: .3rem; font-size: .65rem; line-height: 1.4; }
+.center-dashboard-description-short { display: none; font-size: .6rem; line-height: 1.3; }
+.center-dashboard-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .6rem; }
+.center-dashboard-kpi { min-width: 0; padding: .65rem .75rem; }
+.center-dashboard-kpi-label { display: flex; align-items: center; justify-content: space-between; gap: .3rem; font-size: .65rem; }
+.center-dashboard-kpi-icon { width: 1rem; height: 1rem; flex-shrink: 0; }
+.center-dashboard-kpi-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem; margin-top: .35rem; font-size: clamp(1rem, 1.6vw, 1.5rem); line-height: 1.25; overflow-wrap: anywhere; }
+.center-dashboard-kpi-unit { font-size: .6rem; }
+.center-dashboard-kpi-note { margin-top: .3rem; font-size: .55rem; line-height: 1.3; }
+.center-dashboard-chart-tabs { display: none; }
+.center-dashboard-charts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: .75rem; min-height: 0; }
+.center-dashboard-trend { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: .5rem; min-width: 0; min-height: 0; padding: .8rem; overflow: hidden; }
+.center-dashboard-chart-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .2rem .5rem; }
+.center-dashboard-chart-heading h3, .center-dashboard-balance h3 { font-size: .75rem; line-height: 1.3; }
+.center-dashboard-chart-heading > span { font-size: .6rem; }
+.center-dashboard-trend-plot { min-height: 0; min-width: 0; }
+.trend-chart--fit { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100%; min-height: 0; }
+.trend-chart--fit > svg { display: block; width: 100%; height: 100%; min-height: 0; }
+.trend-chart--fit .trend-chart-legend { flex-wrap: wrap; gap: .3rem .9rem; margin-top: .2rem; font-size: .6rem; }
+.trend-chart--fit .trend-chart-legend-note { display: none; }
+.center-dashboard-balance { display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; padding: .8rem; overflow: auto; }
+.center-dashboard-balance-bars { display: flex; flex: 1 0 auto; flex-direction: column; justify-content: center; gap: .9rem; }
+.center-dashboard-balance-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem; font-size: .65rem; }
+.center-dashboard-balance-details { display: flex; flex: 1 0 auto; flex-direction: column; justify-content: center; gap: .65rem; padding-top: .65rem; font-size: .6rem; }
+.center-dashboard-balance-details > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem .4rem; }
+.center-dashboard-balance-details dd { overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .center-dashboard-workspace { padding: .5rem .6rem calc(4.5rem + env(safe-area-inset-bottom)); }
+}
+@container panel-content (width < 44rem) {
+  .center-dashboard-overview { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .center-dashboard-overview[data-heading="false"] { grid-template-rows: auto auto minmax(0, 1fr); }
+  .center-dashboard-chart-tabs { display: flex; gap: .35rem; }
+  .center-dashboard-chart-tabs button { flex: 1; border-radius: .5rem; padding: .3rem .5rem; font-size: .65rem; font-weight: 600; }
+  .center-dashboard-charts { display: block; }
+  .center-dashboard-trend, .center-dashboard-balance { height: 100%; }
+  .center-dashboard-charts[data-chart-tab="trend"] .center-dashboard-balance,
+  .center-dashboard-charts[data-chart-tab="balance"] .center-dashboard-trend { display: none; }
+  .center-dashboard-balance-bars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; }
+  .center-dashboard-balance-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: center; }
+  .center-dashboard-balance-details > div { display: block; }
+  .center-dashboard-balance-details dd { margin-top: .25rem; }
+}
+@container panel-content (width < 34rem) {
+  .center-dashboard-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+  .center-dashboard-kpi:last-child { grid-column: span 2; }
+  .center-dashboard-kpi-icon { display: none; }
+  .center-dashboard-heading h2 { font-size: .85rem; }
+}
+@container dashboard-overview (height < 28rem) {
+  .center-dashboard-kpi { padding: .4rem .5rem; }
+  .center-dashboard-kpi-value { margin-top: .2rem; font-size: 1.1rem; }
+  .center-dashboard-trend, .center-dashboard-balance { padding: .55rem; gap: .4rem; }
+  .center-dashboard-balance-bars { gap: .6rem; }
+  .center-dashboard-balance-details { padding-top: .4rem; gap: .4rem; }
+}
+@container dashboard-overview (height < 22rem) {
+  .center-dashboard-description, .center-dashboard-kpi-note { display: none; }
+  .center-dashboard-description-short { display: block; margin-top: .2rem; }
+  .center-dashboard-kpi { padding: .25rem .4rem; }
+  .center-dashboard-kpi-label { font-size: .6rem; }
+  .center-dashboard-kpi-value { font-size: 1rem; line-height: 1.1; }
+  .center-dashboard-kpi-icon { display: none; }
+  .center-dashboard-heading h2 { font-size: .8rem; line-height: 1.2; }
+  .center-dashboard-chart-heading h3, .center-dashboard-balance h3 { font-size: .65rem; }
+}
+@container dashboard-overview (height < 18rem) {
+  .center-dashboard-heading h2 { font-size: .72rem; }
+  .center-dashboard-description-short { font-size: .55rem; }
+  .center-dashboard-kpi { padding: .2rem .3rem; }
+  .center-dashboard-kpi-value { font-size: .9rem; }
+  .center-dashboard-kpi-unit, .center-dashboard-chart-heading > span { display: none; }
+  .center-dashboard-trend { padding: .35rem; gap: .2rem; }
+  .trend-chart--fit .trend-chart-legend { font-size: .5rem; margin-top: 0; }
 }

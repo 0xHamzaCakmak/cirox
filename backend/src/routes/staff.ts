@@ -9,6 +9,7 @@ import { readableBranch, writableBranch } from '../services/branch-access';
 import { bootstrapData } from '../services/bootstrap';
 import { calculateWages } from '../services/staff-wages';
 import { staffRecords } from '../services/expenses';
+import { recordBranchActivity } from '../services/notifications';
 
 export const staffRouter = Router();
 staffRouter.use(requireAuth);
@@ -41,6 +42,7 @@ staffRouter.post('/staff', asyncRoute(async (req, res) => {
     await manager.query(`INSERT INTO staff (id,company_id,branch_id,full_name,role,daily_wage,monthly_salary,status,phone,hire_date,salary_basis,client_request_id,request_hash)
       VALUES (?,?,?,?,?,?,?,'active',?,?,?,?,?)`, [id, branch.companyId, branch.id, input.fullName, input.role,
       wages.dailyWage.toFixed(2), wages.monthlySalary.toFixed(2), input.phone, input.hireDate, input.salaryBasis, input.clientRequestId, hash]);
+    await recordBranchActivity(manager, branch.id, user, { kind: 'staff_created', tone: 'info', title: 'Personel eklendi', detail: `${input.fullName} · ${input.role}` });
     return id;
   });
   const bootstrap = await bootstrapData(user); res.status(201).json({ staff: bootstrap.staffList.find(person => person.id === id), bootstrap });
@@ -52,8 +54,12 @@ staffRouter.post('/staff/:staffId/update', asyncRoute(async (req, res) => {
   const user = res.locals.user as UserRow; await writableBranch(user, staff.branch_id);
   const wages = calculateWages(input.salaryBasis, input.salaryAmount);
   if (wages.monthlySalary > 99999999.99) throw new HttpError(400, 'Aylık ücret sınırı aşıldı.');
-  await appDataSource.query('UPDATE staff SET full_name=?,role=?,phone=?,hire_date=?,salary_basis=?,daily_wage=?,monthly_salary=? WHERE id=?',
-    [input.fullName, input.role, input.phone, input.hireDate, input.salaryBasis, wages.dailyWage.toFixed(2), wages.monthlySalary.toFixed(2), staff.id]);
+  await appDataSource.transaction(async manager => {
+    await manager.query('SELECT id FROM staff WHERE id=? FOR UPDATE', [staff.id]);
+    await manager.query('UPDATE staff SET full_name=?,role=?,phone=?,hire_date=?,salary_basis=?,daily_wage=?,monthly_salary=? WHERE id=?',
+      [input.fullName, input.role, input.phone, input.hireDate, input.salaryBasis, wages.dailyWage.toFixed(2), wages.monthlySalary.toFixed(2), staff.id]);
+    await recordBranchActivity(manager, staff.branch_id, user, { kind: 'staff_updated', tone: 'info', title: 'Personel bilgileri güncellendi', detail: input.fullName });
+  });
   res.json({ bootstrap: await bootstrapData(user) });
 }));
 staffRouter.post('/staff/:staffId/status', asyncRoute(async (req, res) => {
@@ -61,6 +67,12 @@ staffRouter.post('/staff/:staffId/status', asyncRoute(async (req, res) => {
   const [staff] = await appDataSource.query('SELECT * FROM staff WHERE id=?', [req.params.staffId]);
   if (!staff) throw new HttpError(404, 'Personel bulunamadı.');
   const user = res.locals.user as UserRow; await writableBranch(user, staff.branch_id);
-  await appDataSource.query('UPDATE staff SET status=? WHERE id=?', [status, staff.id]);
+  await appDataSource.transaction(async manager => {
+    const [current] = await manager.query('SELECT status FROM staff WHERE id=? FOR UPDATE', [staff.id]);
+    if (current.status === status) return;
+    await manager.query('UPDATE staff SET status=? WHERE id=?', [status, staff.id]);
+    await recordBranchActivity(manager, staff.branch_id, user, { kind: 'staff_status', tone: status === 'active' ? 'info' : 'warning',
+      title: status === 'active' ? 'Personel aktifleştirildi' : 'Personel pasife alındı', detail: staff.full_name });
+  });
   res.json({ bootstrap: await bootstrapData(user) });
 }));

@@ -42,7 +42,7 @@ export const MobileBranchActionModal: React.FC<MobileBranchActionModalProps> = (
   initialMode = 'revenue',
 }) => {
   const {
-    currentUser,
+    currentUser: actor, viewUser: currentUser,
     branches,
     selectedBranchId,
     addDailyRevenue,
@@ -283,7 +283,7 @@ export const MobileBranchActionModal: React.FC<MobileBranchActionModalProps> = (
               <span>+ Ciro Girişi</span>
             </button>
 
-            <button
+            {actor?.role !== 'merkez' && <button
               type="button"
               onClick={() => { onClose(); setActiveTab('expense_new'); }}
               className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all ${
@@ -294,7 +294,7 @@ export const MobileBranchActionModal: React.FC<MobileBranchActionModalProps> = (
             >
               <Receipt className="w-4 h-4" />
               <span>+ Gider / Fatura</span>
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -441,7 +441,7 @@ export const MobileBranchActionModal: React.FC<MobileBranchActionModalProps> = (
                 />
               </div>
 
-              <ReceiptCapture branchId={branch.id} receipts={receipts} onChange={setReceipts} disabled={saving || currentUser?.role !== 'sube'} onBusyChange={setPhotoBusy} />
+              <ReceiptCapture branchId={branch.id} receipts={receipts} onChange={setReceipts} disabled={saving || (actor?.role !== 'admin' && currentUser?.role !== 'sube')} onBusyChange={setPhotoBusy} />
 
               {/* Ek Not */}
               <div>
@@ -695,7 +695,7 @@ export const MobileBranchActionModal: React.FC<MobileBranchActionModalProps> = (
               <button
                 type="submit"
                 form="mobileRevenueForm"
-                disabled={saving || photoBusy || currentUser?.role !== 'sube'}
+                disabled={saving || photoBusy || (actor?.role !== 'admin' && currentUser?.role !== 'sube')}
                 className="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 active:scale-95 transition-all"
               >
                 <CheckCircle2 className="w-5 h-5" />

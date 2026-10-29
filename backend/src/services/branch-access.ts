@@ -12,10 +12,11 @@ export async function readableBranch(user: UserRow, branchId: string) {
   return branch;
 }
 
-// All upcoming branch finance mutations must use this guard. A monitoring center
-// can never acquire write permission by passing an observed branch/company ID.
+// The authenticated super admin can manage every branch. Monitoring-center
+// accounts remain read-only, regardless of which branch ID they submit.
 export async function writableBranch(user: UserRow, branchId: string) {
   const branch = await readableBranch(user, branchId);
+  if (user.role === 'admin') return branch;
   if (user.role !== 'sube' || branch.id !== user.branchId || branch.companyId !== user.companyId) {
     throw new HttpError(403, 'Merkez erişimi yalnızca görüntüleme amaçlıdır. İşletme kayıtları değiştirilemez.');
   }

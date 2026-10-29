@@ -22,6 +22,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { PageTab } from '../../types';
 import { CiroxLogo } from './CiroxLogo';
+import { resolvePageForRole } from '../../data/pageAccess';
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -30,19 +31,20 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const {
     currentUser,
+    viewUser,
+    isAdminCustomerView,
     activeTab,
     setActiveTab,
     logout,
-    switchPerspective,
     branches,
-    selectedBranchId,
     companies,
     activeCompany,
     selectedBranch,
   } = useApp();
 
   const isAdmin = currentUser?.role === 'admin';
-  const isMerkez = currentUser?.role === 'merkez';
+  const isMerkez = viewUser?.role === 'merkez';
+  const isPatron = currentUser?.role === 'merkez';
 
   // Super Admin Navigation Items
   const adminNavItems = [
@@ -60,11 +62,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     },
   ];
 
+  const managementActive = ['admin_businesses', 'admin_establishment_create', 'admin_center_create', 'admin_branch_centers'].includes(activeTab);
+
   // Merkez / Operational Nav Items
   const coreNavItems = [
     {
       id: 'dashboard' as PageTab,
-      label: isAdmin || isMerkez ? 'Dashboard' : 'Şubem (Özet)',
+      label: viewUser?.role === 'sube' ? 'Şubem (Özet)' : 'Dashboard',
       icon: LayoutDashboard,
       badge: 'Canlı',
       visibleFor: ['admin', 'merkez', 'sube'],
@@ -127,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   };
 
   return (
-    <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full select-none">
+    <aside className={`${isMerkez ? 'w-48' : 'w-64'} shrink-0 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full select-none`}>
       {/* Brand Header */}
       <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -162,77 +166,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}
             >
-              {isAdmin ? 'Süper Admin' : isMerkez ? 'Merkez' : 'Şube'}
+              {isAdmin ? 'Süper Admin' : isMerkez ? 'Patron' : 'Şube'}
             </span>
           </div>
-          <p className="text-xs font-semibold text-zinc-200 truncate">
+          <p className={`text-xs font-semibold text-zinc-200 ${isPatron ? 'break-words' : 'truncate'}`}>
             {isAdmin
-              ? `Lisans Merkezi + ${activeCompany.code}`
+              ? (isAdminCustomerView ? viewUser?.branchName || activeCompany.name : 'Yönetim Paneli')
               : isMerkez
-              ? activeCompany.name
+              ? (currentUser?.name || activeCompany.ownerName).toLocaleUpperCase('tr-TR')
               : currentUser?.branchName}
           </p>
+          {isPatron && <p className="mt-1 text-[11px] font-semibold text-zinc-400">ŞUBE : {branches.length}</p>}
 
-          {(isAdmin || isMerkez) ? <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {isAdmin ? (
-              <>
-                <button
-                  onClick={() => switchPerspective('merkez')}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 transition-colors border border-zinc-700/50"
-                  title="Merkez Yönetici Moduna Geç"
-                >
-                  <Building2 className="w-3 h-3 text-indigo-400" />
-                  <span>Merkez Modu</span>
-                </button>
-                <button
-                  onClick={() => switchPerspective('sube', selectedBranchId)}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 transition-colors border border-zinc-700/50"
-                  title="Şube Kullanıcı Moduna Geç"
-                >
-                  <Building className="w-3 h-3 text-emerald-400" />
-                  <span>Şube Modu</span>
-                </button>
-              </>
-            ) : isMerkez ? (
-              <>
-                <button
-                  onClick={() => switchPerspective('admin')}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-indigo-300 hover:text-zinc-100 transition-colors border border-indigo-500/30"
-                  title="Süper Admin Moduna Geç"
-                >
-                  <Shield className="w-3 h-3 text-indigo-400" />
-                  <span>Süper Admin</span>
-                </button>
-                <button
-                  onClick={() => switchPerspective('sube', selectedBranchId)}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 transition-colors border border-zinc-700/50"
-                  title="Şube Kullanıcı Moduna Geç"
-                >
-                  <Building className="w-3 h-3 text-emerald-400" />
-                  <span>Şube Modu</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => switchPerspective('admin')}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-indigo-300 hover:text-zinc-100 transition-colors border border-indigo-500/30"
-                  title="Süper Admin Moduna Geç"
-                >
-                  <Shield className="w-3 h-3 text-indigo-400" />
-                  <span>Süper Admin</span>
-                </button>
-                <button
-                  onClick={() => switchPerspective('merkez')}
-                  className="flex items-center justify-center gap-1 text-[10px] font-medium py-1 px-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 transition-colors border border-zinc-700/50"
-                  title="Merkez Yönetici Görünümüne Dön"
-                >
-                  <Building2 className="w-3 h-3 text-indigo-400" />
-                  <span>Merkez Modu</span>
-                </button>
-              </>
-            )}
-          </div> : <div className="mt-2 space-y-1 text-[10px] text-zinc-400">
+          {!isAdmin && !isMerkez && <div className="mt-2 space-y-1 text-[10px] text-zinc-400">
             <p className="truncate">Kullanıcı: {currentUser?.username || selectedBranch.username || currentUser?.name}</p>
             <p className="truncate">Merkez: {selectedBranch.centerName || 'Merkez yok'}</p>
             <p className="truncate">{[selectedBranch.district, selectedBranch.city].filter(Boolean).join(' / ')}</p>
@@ -249,9 +195,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               <Shield className="w-3 h-3 text-indigo-400" />
               <span>Süper Admin & Lisanslar</span>
             </div>
+            <button type="button" aria-current={managementActive ? 'page' : undefined}
+              onClick={() => handleNavClick('admin_businesses')}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium border ${managementActive ? 'border-indigo-500/30 bg-indigo-600/15 text-indigo-300' : 'border-transparent text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'}`}>
+              <span className="flex items-center gap-2.5"><Building2 className="w-4 h-4 shrink-0" />İşletme Yönetimi</span>
+              {managementActive && <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+            </button>
             {adminNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id || (item.id === 'expenses' && ['expense_new', 'expense_camera', 'expense_accounting'].includes(activeTab)) || (item.id === 'expense_categories' && ['expense_category_new', 'expense_category_edit'].includes(activeTab)) || (item.id === 'staff' && ['staff_new', 'staff_edit', 'staff_history', 'staff_payment'].includes(activeTab));
+              const isActive = activeTab === item.id || (item.id === 'branch_detail' && activeTab === 'branch_transactions') || (item.id === 'expenses' && ['expense_new', 'expense_camera', 'expense_accounting'].includes(activeTab)) || (item.id === 'expense_categories' && ['expense_category_new', 'expense_category_edit'].includes(activeTab)) || (item.id === 'staff' && ['staff_new', 'staff_edit', 'staff_history', 'staff_payment'].includes(activeTab));
               return (
                 <button
                   key={item.id}
@@ -291,14 +243,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         )}
 
         {/* Operational / Merkez Navigation */}
-        <div className="text-[10px] uppercase font-semibold text-zinc-500 px-3 py-1 tracking-wider">
-          {isAdmin ? `Merkez İşletmesi (${activeCompany.code})` : isMerkez ? `Merkez (${branches.length} Şube)` : 'Şube İşlemleri'}
-        </div>
+        {(!isAdmin || viewUser?.role !== 'admin') && <>
+        {!isPatron && <div className="text-[10px] uppercase font-semibold text-zinc-500 px-3 py-1 tracking-wider">
+          {isMerkez ? `${activeCompany.name} (${branches.length} Şube)` : 'Şube İşlemleri'}
+        </div>}
         {coreNavItems
-          .filter((item) => item.visibleFor.includes(currentUser?.role || 'merkez'))
+          .filter((item) => item.visibleFor.includes(viewUser?.role || 'merkez') && resolvePageForRole(currentUser?.role, item.id) === item.id)
           .map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'expenses' && ['expense_new', 'expense_camera', 'expense_accounting'].includes(activeTab)) || (item.id === 'expense_categories' && ['expense_category_new', 'expense_category_edit'].includes(activeTab)) || (item.id === 'staff' && ['staff_new', 'staff_edit', 'staff_history', 'staff_payment'].includes(activeTab));
+            const isActive = activeTab === item.id || (item.id === 'branch_detail' && activeTab === 'branch_transactions') || (item.id === 'expenses' && ['expense_new', 'expense_camera', 'expense_accounting'].includes(activeTab)) || (item.id === 'expense_categories' && ['expense_category_new', 'expense_category_edit'].includes(activeTab)) || (item.id === 'staff' && ['staff_new', 'staff_edit', 'staff_history', 'staff_payment'].includes(activeTab));
             return (
               <button
                 key={item.id}
@@ -334,6 +287,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               </button>
             );
           })}
+        </>}
       </nav>
 
       {/* User Footer */}

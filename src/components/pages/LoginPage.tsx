@@ -25,25 +25,25 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 selection:bg-emerald-500 selection:text-black">
-      <div className="w-full max-w-md">
+    <div className="min-h-dvh bg-zinc-950 flex flex-col items-center md:p-6 selection:bg-emerald-500 selection:text-black">
+      <div className="w-full min-w-0 min-h-dvh md:min-h-[calc(100dvh-3rem)] max-w-[42rem] flex flex-col gap-[18px]">
         {/* Brand Header */}
-        <div className="text-center mb-8">
-          <CiroxLogo className="w-14 h-14 mx-auto mb-4 shadow-lg shadow-emerald-500/5" />
-          <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">
+        <div className="hidden md:block text-center shrink-0">
+          <CiroxLogo className="w-15 h-15 mx-auto mb-[9px] shadow-lg shadow-emerald-500/5" />
+          <h1 className="text-4xl font-bold text-zinc-100 tracking-tight">
             CIROX
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-[18px] leading-6 text-zinc-400 mt-1">
             Çoklu Şube Finans, Ciro & Performans Yönetim Konsolu
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur">
+        <div className="login-card flex flex-1 flex-col justify-center bg-zinc-900/90 md:border border-zinc-800 md:rounded-3xl p-[15px] md:p-[30px] shadow-2xl backdrop-blur">
           {/* Regular Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="w-full space-y-[18px]">
             <div>
-              <label htmlFor="login-identifier" className="block text-xs font-medium text-zinc-300 mb-1.5">
+              <label htmlFor="login-identifier" className="block text-[18px] leading-6 font-medium text-zinc-300 mb-[9px]">
                 Kullanıcı Adı veya E-posta
               </label>
               <input
@@ -55,16 +55,16 @@ export const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Kullanıcı adı veya e-posta"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+                className="w-full min-h-12 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-[18px] leading-6 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="login-password" className="block text-xs font-medium text-zinc-300">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 mb-[9px]">
+                <label htmlFor="login-password" className="block text-[18px] leading-6 font-medium text-zinc-300">
                   Şifre
                 </label>
-                <a href="#forgot" className="text-[11px] text-emerald-400 hover:underline">
+                <a href="#forgot" className="text-[16.5px] text-emerald-400 hover:underline">
                   Şifremi unuttum
                 </a>
               </div>
@@ -75,22 +75,22 @@ export const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full min-h-12 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-[18px] leading-6 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
-            {formError && <p role="alert" className="text-xs text-rose-400">{formError}</p>}
+            {formError && <p role="alert" className="text-[18px] leading-6 text-rose-400">{formError}</p>}
             <button
               type="submit" disabled={busy}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20"
+              className="w-full min-h-12 flex items-center justify-center gap-3 py-3 px-[15px] rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold text-[18px] leading-6 transition-colors shadow-lg shadow-emerald-500/20"
             >
               <span>{busy ? 'Giriş yapılıyor…' : 'Giriş Yap'}</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-6 h-6 shrink-0" />
             </button>
           </form>
 
           {/* Footer note */}
-          <div className="mt-6 pt-4 border-t border-zinc-800/80 text-center text-[11px] text-zinc-500">
+          <div className="hidden md:block mt-6 pt-[18px] border-t border-zinc-800/80 text-center text-[16.5px] text-zinc-500">
             <span>Para Birimi: </span>
             <span className="font-mono text-zinc-400 font-semibold">TRY (₺)</span>
             <span className="mx-2">•</span>

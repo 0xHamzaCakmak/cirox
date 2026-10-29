@@ -11,7 +11,7 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const SettingsPage: React.FC = () => {
-  const { branches, currentUser, selectedBranchId, saveBranchSettings, saveOwnProfile, showNotification } = useApp();
+  const { branches, currentUser: actor, viewUser: currentUser, selectedBranchId, saveBranchSettings, saveOwnProfile, showNotification } = useApp();
   const isBranch = currentUser?.role === 'sube';
   const branch = branches.find(b => b.id === (currentUser?.branchId || selectedBranchId));
   const [saving, setSaving] = useState(false);
@@ -304,7 +304,7 @@ export const SettingsPage: React.FC = () => {
 
       {/* Tab Content: Users Management */}
       {activeSubTab === 'users' && (isBranch ? (
-        <BranchProfileForm name={profileName} setName={setProfileName} username={username} setUsername={setUsername} email={profileEmail} setEmail={setProfileEmail} phone={profilePhone} setPhone={setProfilePhone} currentPassword={currentPassword} setCurrentPassword={setCurrentPassword} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} branchName={branch?.name || ''} saving={saving} onSubmit={handleSave} />
+        <BranchProfileForm adminEditing={actor?.role === 'admin'} name={profileName} setName={setProfileName} username={username} setUsername={setUsername} email={profileEmail} setEmail={setProfileEmail} phone={profilePhone} setPhone={setProfilePhone} currentPassword={currentPassword} setCurrentPassword={setCurrentPassword} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} branchName={branch?.name || ''} saving={saving} onSubmit={handleSave} />
       ) : (
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 space-y-4 text-xs">
           <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
@@ -424,6 +424,7 @@ export const SettingsPage: React.FC = () => {
 };
 
 interface BranchProfileFormProps {
+  adminEditing?: boolean;
   name: string; username: string; email: string; phone: string; currentPassword: string; newPassword: string; confirmPassword: string;
   setName: (value: string) => void; setUsername: (value: string) => void; setEmail: (value: string) => void; setPhone: (value: string) => void;
   setCurrentPassword: (value: string) => void; setNewPassword: (value: string) => void; setConfirmPassword: (value: string) => void;
@@ -438,12 +439,12 @@ function BranchProfileForm(props: BranchProfileFormProps) {
     { id: 'profile-current', label: 'Mevcut Şifre', value: props.currentPassword, update: props.setCurrentPassword, type: 'password', autoComplete: 'current-password', maxLength: 256, required: true },
     { id: 'profile-new', label: 'Yeni Şifre', value: props.newPassword, update: props.setNewPassword, type: 'password', autoComplete: 'new-password', maxLength: 256, minLength: 8 },
     { id: 'profile-confirm', label: 'Yeni Şifre Tekrar', value: props.confirmPassword, update: props.setConfirmPassword, type: 'password', autoComplete: 'new-password', maxLength: 256, minLength: 8, required: !!props.newPassword },
-  ];
+  ].filter(field => !props.adminEditing || field.id !== 'profile-current');
   return <form id="settings-profile" onSubmit={props.onSubmit} className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 space-y-5 text-xs">
-    <div className="flex flex-wrap gap-3 items-center justify-between pb-3 border-b border-zinc-800"><div><h3 className="text-sm font-bold text-zinc-100">Şube Kullanıcı Bilgileri</h3><p className="text-zinc-400 text-[11px] mt-1">{props.branchName} · Kendi giriş hesabınız</p></div><span className="px-3 py-1 rounded-full text-[10px] text-sky-400 bg-sky-500/10 border border-sky-500/20">Şube Kullanıcısı</span></div>
+    <div className="flex flex-wrap gap-3 items-center justify-between pb-3 border-b border-zinc-800"><div><h3 className="text-sm font-bold text-zinc-100">Şube Kullanıcı Bilgileri</h3><p className="text-zinc-400 text-[11px] mt-1">{props.branchName} · {props.adminEditing ? 'Seçili müşteri hesabı' : 'Kendi giriş hesabınız'}</p></div><span className="px-3 py-1 rounded-full text-[10px] text-sky-400 bg-sky-500/10 border border-sky-500/20">Şube Kullanıcısı</span></div>
     {[fields.slice(0, 4), fields.slice(4)].map((group, index) => <div key={index} className={index === 0 ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4' : 'grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-zinc-800'}>
       {group.map(field => <div key={field.id} className="min-w-0 flex flex-col"><label className="block text-zinc-400 mb-1 font-medium" htmlFor={field.id}>{field.label}</label><input id={field.id} type={field.type} autoComplete={field.autoComplete} required={field.required} minLength={field.minLength} maxLength={field.maxLength} pattern={field.pattern} value={field.value} disabled={props.saving} onChange={event => field.update(event.target.value)} className="mt-auto w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-sky-500" /></div>)}
     </div>)}
-    <p className="text-[11px] text-zinc-400">Güncellemeyi mevcut şifrenizle onaylayın. Yeni şifre en az 8 karakter olmalıdır; yeni şifre alanlarını boş bırakırsanız şifreniz değişmez. Şifre değiştiğinde diğer oturumlar kapatılır.</p>
+    <p className="text-[11px] text-zinc-400">{props.adminEditing ? 'Seçili hesabın kullanıcı bilgilerini düzenliyorsunuz.' : 'Güncellemeyi mevcut şifrenizle onaylayın.'} Yeni şifre en az 8 karakter olmalıdır; yeni şifre alanlarını boş bırakırsanız şifre değişmez. Şifre değiştiğinde bu hesabın diğer oturumları kapatılır.</p>
   </form>;
 }

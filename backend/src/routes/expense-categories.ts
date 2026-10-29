@@ -8,6 +8,7 @@ import { asyncRoute, HttpError } from '../http';
 import { readableBranch, writableBranch } from '../services/branch-access';
 import { branchCategories, publicCategory } from '../services/expenses';
 import { bootstrapData } from '../services/bootstrap';
+import { recordBranchActivity } from '../services/notifications';
 
 export const expenseCategoriesRouter = Router();
 expenseCategoriesRouter.use(requireAuth);
@@ -34,6 +35,7 @@ expenseCategoriesRouter.post('/expense-categories', asyncRoute(async (req, res) 
       [id, branch.companyId, branch.id, input.name, input.type, input.iconName, input.description, vat]);
     await manager.query(`INSERT INTO branch_expense_category_settings (branch_id,category_id,name,type,icon_name,description,default_vat_rate,is_active) VALUES (?,?,?,?,?,?,?,?)`,
       [branch.id, id, input.name, input.type, input.iconName, input.description, vat, input.isActive]);
+    await recordBranchActivity(manager, branch.id, user, { kind: 'category_created', tone: 'info', title: 'Gider kalemi eklendi', detail: input.name });
   });
   res.status(201).json({ bootstrap: await bootstrapData(user) });
 }));
@@ -53,6 +55,8 @@ expenseCategoriesRouter.post('/expense-categories/:categoryId/update', asyncRout
     await manager.query(`INSERT INTO branch_expense_category_settings (branch_id,category_id,name,type,icon_name,description,default_vat_rate,is_active) VALUES (?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE name=VALUES(name),type=VALUES(type),icon_name=VALUES(icon_name),description=VALUES(description),default_vat_rate=VALUES(default_vat_rate),is_active=VALUES(is_active)`,
       [branch.id, id, next.name, next.type, next.icon, next.description, next.vat, next.active]);
+    await recordBranchActivity(manager, branch.id, user, { kind: 'category_updated', tone: next.active ? 'info' : 'warning',
+      title: next.active ? 'Gider kalemi güncellendi' : 'Gider kalemi gizlendi', detail: next.name });
   });
   res.json({ bootstrap: await bootstrapData(user) });
 }));

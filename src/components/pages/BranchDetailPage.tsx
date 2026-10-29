@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   CreditCard,
@@ -19,6 +19,9 @@ import {
 import { useApp } from '../../context/AppContext';
 import { DonutBreakdownChart } from '../common/SleekCharts';
 import { branchOverview } from '../../data/branchOverview';
+import { branchInspectionRange, istanbulToday, type BranchInspectionPeriod } from '../../data/branchInspectionRange';
+import { BranchInspectionFilters } from '../common/BranchInspectionFilters';
+import { BranchExpenseHistory } from '../common/BranchExpenseHistory';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { Camera } from 'lucide-react';
 
@@ -28,18 +31,30 @@ export const BranchDetailPage: React.FC = () => {
     branches,
     setSelectedBranchId,
     setActiveTab,
+    activeTab, adminCenterId, selectAdminBranch,
     expenses,
     dailyRevenueRecords,
-    currentUser, expenseCategories, staffList,
+    currentUser: actor, viewUser: currentUser, expenseCategories, staffList,
   } = useApp();
 
   const isSubeUser = currentUser?.role === 'sube';
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }));
+  const isCenterInspection = actor?.role === 'merkez' || (actor?.role === 'admin' && activeTab === 'branch_detail');
+  const [selectedDate, setSelectedDate] = useState(istanbulToday);
+  const [inspectionPeriod, setInspectionPeriod] = useState<BranchInspectionPeriod>('today');
+  const [inspectionStart, setInspectionStart] = useState('');
+  const [inspectionEnd, setInspectionEnd] = useState('');
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'siparis_integration' | 'transactions'>('overview');
   const identity = isSubeUser ? branches.find(br => br.id === currentUser?.branchId) : branches.find(br => br.id === selectedBranch.id) || branches[0];
-  const overview = useMemo(() => branchOverview(identity, selectedDate, dailyRevenueRecords, expenses, expenseCategories, staffList), [identity, selectedDate, dailyRevenueRecords, expenses, expenseCategories, staffList]);
+  useEffect(() => {
+    setInspectionPeriod('today'); setInspectionStart(''); setInspectionEnd(''); setSelectedDate(istanbulToday()); setActiveSubTab('overview');
+  }, [identity?.id, isCenterInspection]);
+  const inspectionRange = branchInspectionRange(inspectionPeriod, istanbulToday(), inspectionStart, inspectionEnd);
+  const rangeStart = isCenterInspection ? inspectionRange.start : selectedDate;
+  const rangeEnd = isCenterInspection ? inspectionRange.end : selectedDate;
+  const multiDay = rangeStart !== rangeEnd;
+  const overview = useMemo(() => branchOverview(identity, rangeStart, dailyRevenueRecords, expenses, expenseCategories, staffList, rangeEnd), [identity, rangeStart, rangeEnd, dailyRevenueRecords, expenses, expenseCategories, staffList]);
   const b = overview.branch;
-  const readOnly = !isSubeUser || !b.id;
+  const readOnly = (actor?.role !== 'admin' && !isSubeUser) || !b.id;
   const openEntry = (tab: 'revenue_entry' | 'expense_new' | 'expense_camera') => {
     if (readOnly) return;
     setSelectedBranchId(b.id); setActiveTab(tab);
@@ -53,18 +68,23 @@ export const BranchDetailPage: React.FC = () => {
     { label: 'Diğer', value: b.revenueBreakdown.other, color: '#a855f7' }, // Purple
   ];
 
-  const expSegments = overview.categories;
+  const expSegments = overview.categories.filter(category => !category.historical && category.value > 0);
+  const historicalExpense = overview.categories.filter(category => category.historical).reduce((sum, category) => sum + category.value, 0);
 
   const integration = b.siparisIntegration;
   const variance = b.dailyRevenue - integration.expectedSalesAmount;
 
+  if (actor?.role === 'merkez' && activeTab === 'branch_transactions') {
+    return <BranchExpenseHistory key={b.id + rangeStart + rangeEnd} branchId={b.id} branchName={b.name} start={rangeStart} end={rangeEnd} expenses={expenses} />;
+  }
+
   return (
-    <div className="space-y-6 pb-12">
+    <div className={actor?.role === 'merkez' ? 'patron-branch-inspection flex flex-col gap-1.5 pb-12' : 'space-y-6 pb-12'}>
       {/* PWA Mobile Installation Prompt */}
-      <PWAInstallPrompt />
+      {!isCenterInspection && <PWAInstallPrompt />}
 
       {/* Mobile Branch Fast Action Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {!isCenterInspection && <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Button 1: Hızlı Ciro Girişi */}
         <button
           onClick={() => {
@@ -121,15 +141,20 @@ export const BranchDetailPage: React.FC = () => {
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-semibold">Kamera</span>
         </button>
-      </div>
+      </div>}
 
       {/* Top Header Card with Branch Switcher & Date Picker */}
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3">
-            {!isSubeUser && (
+      <div className={`bg-zinc-900/90 border border-zinc-800 rounded-2xl ${actor?.role === 'merkez' ? 'patron-period-card' : 'p-5'}`}>
+        <div className="flex flex-col gap-4">
+          {!isCenterInspection && <div className="flex items-start sm:items-center gap-3">
+            {(isCenterInspection || !isSubeUser) && (
               <button
-                onClick={() => setActiveTab('branches')}
+                onClick={() => {
+                  if (actor?.role === 'admin') {
+                    if (adminCenterId) { selectAdminBranch(''); setActiveTab('branches'); }
+                    else setActiveTab('admin_businesses');
+                  } else setActiveTab('branches');
+                }}
                 className="p-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-850 transition-colors"
                 title="Şubeler Listesine Dön"
               >
@@ -153,28 +178,15 @@ export const BranchDetailPage: React.FC = () => {
                 Şube Müdürü: <span className="text-zinc-200 font-medium">{b.managerName}</span> • İletişim: {b.phone}
               </p>
             </div>
-          </div>
+          </div>}
 
           {/* Quick Branch & Date Selectors */}
-          <div className="flex flex-wrap items-center gap-3">
-            {!isSubeUser && (
-              <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300">
-                <Building className="w-3.5 h-3.5 text-zinc-400" />
-                <select
-                  value={b.id}
-                  onChange={(e) => setSelectedBranchId(e.target.value)}
-                  className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer pr-2"
-                >
-                  {branches.map((br) => (
-                    <option key={br.id} value={br.id} className="bg-zinc-900">
-                      {br.name} ({br.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+          <div className="w-full min-w-0">
+            {isCenterInspection && <BranchInspectionFilters compact={actor?.role === 'merkez'} period={inspectionPeriod} start={inspectionStart} end={inspectionEnd} range={inspectionRange}
+              onPeriod={period => { setInspectionPeriod(period); setInspectionStart(''); setInspectionEnd(''); }}
+              onStart={setInspectionStart} onEnd={setInspectionEnd} />}
 
-            <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300">
+            {!isCenterInspection && <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300">
               <Calendar className="w-3.5 h-3.5 text-zinc-400" />
               <input
                 type="date"
@@ -183,28 +195,31 @@ export const BranchDetailPage: React.FC = () => {
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer font-mono"
               />
-            </div>
+            </div>}
           </div>
         </div>
 
+      </div>
+
+      <div>
         {/* 4 Upper KPI Cards (Günlük Ciro, Günlük Gider, Net, Personel Sayısı) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-6 pt-5 border-t border-zinc-800/80">
+        <div className="patron-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Günlük Ciro */}
           <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
             <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-              <span>Günlük Ciro</span>
+              <span>{multiDay ? 'Dönem Cirosu' : 'Günlük Ciro'}</span>
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="text-xl font-bold font-mono text-zinc-100">
               {b.dailyRevenue.toLocaleString('tr-TR')} <span className="text-xs text-zinc-400">₺</span>
             </div>
-            <p className="text-[11px] text-zinc-500 mt-1">Günün toplam tahsilatı</p>
+            <p className="text-[11px] text-zinc-500 mt-1">{multiDay ? 'Seçili dönemin toplam tahsilatı' : 'Günün toplam tahsilatı'}</p>
           </div>
 
           {/* Günlük Gider */}
           <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
             <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-              <span>Günlük Gider</span>
+              <span>{multiDay ? 'Dönem Gideri' : 'Günlük Gider'}</span>
               <Receipt className="w-3.5 h-3.5 text-rose-400" />
             </div>
             <div className="text-xl font-bold font-mono text-rose-400">
@@ -245,7 +260,7 @@ export const BranchDetailPage: React.FC = () => {
       </div>
 
       {/* Sub-tab Navigation */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 pb-2 text-xs">
+      {actor?.role !== 'merkez' && <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 pb-2 text-xs">
         <button
           onClick={() => setActiveSubTab('overview')}
           className={`px-3.5 py-2 rounded-xl font-medium transition-colors ${
@@ -257,7 +272,7 @@ export const BranchDetailPage: React.FC = () => {
           Gelir, Gider & Personel Dağılımı
         </button>
 
-        <button
+        {!isCenterInspection && <button
           onClick={() => setActiveSubTab('siparis_integration')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-medium transition-colors ${
             activeSubTab === 'siparis_integration'
@@ -267,7 +282,7 @@ export const BranchDetailPage: React.FC = () => {
         >
           <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
           <span>ŞubeSipariş Entegrasyonu & Borç</span>
-        </button>
+        </button>}
 
         <button
           onClick={() => setActiveSubTab('transactions')}
@@ -278,17 +293,17 @@ export const BranchDetailPage: React.FC = () => {
           }`}
         >
           <History className="w-3.5 h-3.5 text-amber-400" />
-          <span>Son İşlemler ({overview.transactions.length})</span>
+          <span>Son İşlemler ({overview.transactions.filter(transaction => transaction.kind === 'expense').length})</span>
         </button>
-      </div>
+      </div>}
 
       {/* Tab 1: Overview (Gelir Dağılımı, Gider Dağılımı, Personel Özeti) */}
       {activeSubTab === 'overview' && (
-        <div className="space-y-6">
+        <div className={actor?.role === 'merkez' ? 'space-y-1.5' : 'space-y-6'}>
           {/* 2 Donut Cards Side-by-Side: Gelir & Gider Dağılımı */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="patron-distributions grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Gelir Dağılımı (Kredi Kartı, Nakit, Online, Diğer) */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
+            <div className="patron-breakdown-card bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
@@ -305,6 +320,7 @@ export const BranchDetailPage: React.FC = () => {
               </div>
 
               <DonutBreakdownChart
+                responsive={actor?.role === 'merkez'}
                 segments={revSegments}
                 centerLabel="Toplam Ciro"
                 centerValue={`${b.dailyRevenue.toLocaleString('tr-TR')} ₺`}
@@ -351,7 +367,7 @@ export const BranchDetailPage: React.FC = () => {
             </div>
 
             {/* Gider Dağılımı (Personel, Kasap, İçecek, Temizlik, Nakliye, Diğer) */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
+            <div className="patron-breakdown-card bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
@@ -359,7 +375,7 @@ export const BranchDetailPage: React.FC = () => {
                     <span>Gider Dağılımı</span>
                   </h3>
                   <p className="text-[11px] text-zinc-400">
-                    Kategori bazlı günlük operasyonel harcamalar
+                    {multiDay ? 'Seçili dönemin kategori bazlı harcamaları' : 'Kategori bazlı günlük operasyonel harcamalar'}
                   </p>
                 </div>
                 <span className="font-mono text-xs text-rose-400 font-bold bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20">
@@ -367,11 +383,13 @@ export const BranchDetailPage: React.FC = () => {
                 </span>
               </div>
 
-              <DonutBreakdownChart
+              {expSegments.length ? <DonutBreakdownChart
+                responsive={actor?.role === 'merkez'}
                 segments={expSegments}
-                centerLabel="Toplam Gider"
-                centerValue={`${b.dailyExpense.toLocaleString('tr-TR')} ₺`}
-              />
+                centerLabel={historicalExpense > 0 ? 'Aktif Kalemler' : 'Toplam Gider'}
+                centerValue={`${expSegments.reduce((sum, category) => sum + category.value, 0).toLocaleString('tr-TR')} ₺`}
+              /> : <p className="py-10 text-center text-xs text-zinc-500">Seçili dönemde aktif gider kalemlerine ait harcama bulunmuyor.</p>}
+              {historicalExpense > 0 && <p className="mt-3 text-xs text-zinc-500">Pasife alınmış kalemlerin geçmiş giderleri: {historicalExpense.toLocaleString('tr-TR')} ₺. Bu tutar toplam gidere dahildir.</p>}
 
               {/* En yüksek gider kalemlerine kısa bakış */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-5 pt-4 border-t border-zinc-800/80 text-xs">
@@ -381,7 +399,7 @@ export const BranchDetailPage: React.FC = () => {
           </div>
 
           {/* Personel Özeti */}
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
+          <div className="patron-staff-card bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
@@ -392,15 +410,15 @@ export const BranchDetailPage: React.FC = () => {
                   Güncel aktif kadro ve gider kayıtlarından hesaplanan gerçek personel ödemeleri
                 </p>
               </div>
-              <button
+              {!isCenterInspection && <button
                 onClick={() => setActiveTab('staff')}
                 className="self-start sm:self-auto text-xs text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-1"
               >
                 <span>Personel Yönetimine Git</span>
-              </button>
+              </button>}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="patron-staff-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
                 <span className="text-xs text-zinc-400 block mb-1">Aktif Personel</span>
                 <div className="text-2xl font-bold font-mono text-zinc-100">
@@ -412,7 +430,7 @@ export const BranchDetailPage: React.FC = () => {
               </div>
 
               <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
-                <span className="text-xs text-zinc-400 block mb-1">Seçili Gün Personel Ödemesi</span>
+                <span className="text-xs text-zinc-400 block mb-1">{multiDay ? 'Seçili Dönem Personel Ödemesi' : 'Seçili Gün Personel Ödemesi'}</span>
                 <div className="text-2xl font-bold font-mono text-amber-400">
                   {overview.staffPaid.toLocaleString('tr-TR')} <span className="text-xs text-zinc-500">₺</span>
                 </div>
@@ -422,12 +440,12 @@ export const BranchDetailPage: React.FC = () => {
               </div>
 
               <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
-                <span className="text-xs text-zinc-400 block mb-1">Ay Başından Seçili Güne Ödemeler</span>
+                <span className="text-xs text-zinc-400 block mb-1">{isCenterInspection ? 'Yevmiye Bazlı Ödemeler' : 'Ay Başından Seçili Güne Ödemeler'}</span>
                 <div className="text-2xl font-bold font-mono text-indigo-300">
-                  {overview.monthlyStaffPaid.toLocaleString('tr-TR')} <span className="text-xs text-zinc-500">₺</span>
+                  {(isCenterInspection ? overview.dailyStaffPaid : overview.monthlyStaffPaid).toLocaleString('tr-TR')} <span className="text-xs text-zinc-500">₺</span>
                 </div>
                 <p className="text-[11px] text-zinc-500 mt-1">
-                  Seçili ayda bu tarihe kadar kaydedilen personel giderleri
+                  {isCenterInspection ? 'Seçili dönemde günlük yevmiye bazında kaydedilmiş ödemeler' : 'Seçili ayda bu tarihe kadar kaydedilen personel giderleri'}
                 </p>
               </div>
             </div>
@@ -560,44 +578,8 @@ export const BranchDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: Son İşlemler Listesi */}
-      {activeSubTab === 'transactions' && (
-        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden">
-          <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-zinc-100">
-              {b.name} - Günlük Ciro & Gider Hareketleri
-            </h3>
-            <span className="text-xs text-zinc-400">
-              Seçilen tarihe ait gerçek kayıtlar
-            </span>
-          </div>
+      {activeSubTab === 'transactions' && <BranchExpenseHistory key={b.id + rangeStart + rangeEnd} branchId={b.id} branchName={b.name} start={rangeStart} end={rangeEnd} expenses={expenses} />}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-zinc-800 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider bg-zinc-950/40">
-                  <th className="py-3 px-4">Tarih</th>
-                  <th className="py-3 px-4">Tür</th>
-                  <th className="py-3 px-4">Açıklama / Kalem</th>
-                  <th className="py-3 px-4">Personel / İrsaliye</th>
-                  <th className="py-3 px-4 text-right">Tutar</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60 text-xs">
-                {overview.transactions.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-500">Seçilen tarihte ciro veya gider kaydı bulunmuyor.</td></tr>}
-                {overview.transactions.map(transaction => <tr key={transaction.id} className="hover:bg-zinc-850/50">
-                  <td className="py-3 px-4 font-mono text-zinc-400">{transaction.date}</td>
-                  <td className="py-3 px-4"><span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold border ${transaction.kind === 'revenue' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>{transaction.kind === 'revenue' ? 'GÜNLÜK CİRO' : 'GİDER'}</span></td>
-                  <td className="py-3 px-4 text-zinc-200"><div className="font-medium">{transaction.title}</div><div className="text-[11px] text-zinc-500">{transaction.description}</div></td>
-                  <td className="py-3 px-4 text-zinc-400">{transaction.reference}</td>
-                  <td className={`py-3 px-4 text-right font-mono font-bold ${transaction.kind === 'revenue' ? 'text-emerald-400' : 'text-rose-400'}`}>{transaction.kind === 'revenue' ? '+' : '-'}{transaction.amount.toLocaleString('tr-TR')} ₺</td>
-                </tr>)}
-
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
 
     </div>

@@ -19,5 +19,5 @@ branchesRouter.get('/:branchId', asyncRoute(async (req, res) => {
   const id = String(req.params.branchId);
   await readableBranch(user, id);
   const data = await bootstrapData(user);
-  res.json({ branch: data.branches.find(branch => branch.id === id), readOnly: user.role !== 'sube' });
+  res.json({ branch: data.branches.find(branch => branch.id === id), readOnly: user.role === 'merkez' });
 }));

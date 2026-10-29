@@ -20,12 +20,13 @@ import { PageTab } from '../../types';
 import { MobileBranchActionModal } from './MobileBranchActionModal';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 
-export const MobileNav: React.FC = () => {
-  const { currentUser, activeTab, setActiveTab } = useApp();
+export const MobileNav: React.FC<{ onOpenMenu?: () => void }> = ({ onOpenMenu }) => {
+  const { currentUser: actor, viewUser: currentUser, activeTab, setActiveTab } = useApp();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [actionModalMode, setActionModalMode] = useState<'revenue' | 'expense'>('revenue');
 
+  const isPatron = actor?.role === 'merkez';
   const isMerkez = currentUser?.role === 'merkez';
 
   const handleSelect = (tab: PageTab) => {
@@ -39,6 +40,14 @@ export const MobileNav: React.FC = () => {
     setActionModalOpen(true);
     setDrawerOpen(false);
   };
+
+  if (isPatron) return <nav aria-label="Ana navigasyon" className="patron-bottom-nav md:hidden bg-zinc-950 border-t border-zinc-800">
+    {[
+      { page: 'dashboard' as const, label: 'Panel', icon: LayoutDashboard, active: activeTab === 'dashboard' },
+      { page: 'branches' as const, label: 'Şubeler', icon: Store, active: ['branches', 'branch_detail', 'branch_transactions'].includes(activeTab) },
+    ].map(item => <button key={item.page} aria-current={item.active ? 'page' : undefined} onClick={() => handleSelect(item.page)} className={item.active ? 'text-emerald-400' : 'text-zinc-400'}><item.icon aria-hidden="true" /><span>{item.label}</span></button>)}
+    <button onClick={onOpenMenu} className={activeTab === 'settings' ? 'text-emerald-400' : 'text-zinc-400'} aria-label="Menüyü Aç"><Menu aria-hidden="true" /><span>Menü</span></button>
+  </nav>;
 
   return (
     <>
@@ -68,7 +77,7 @@ export const MobileNav: React.FC = () => {
         )}
 
         {/* Tab 2: Ciro Gir */}
-        <button
+        {!isPatron && <button
           onClick={() => handleSelect('revenue_entry')}
           className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
             activeTab === 'revenue_entry' ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'
@@ -76,10 +85,10 @@ export const MobileNav: React.FC = () => {
         >
           <TrendingUp className="w-4 h-4" />
           <span>Ciro Gir</span>
-        </button>
+        </button>}
 
         {/* Center Prominent Fast Action Button (+ İşlem) */}
-        <button
+        {!isPatron && <button
           onClick={() => openFastAction('revenue')}
           className="flex flex-col items-center -mt-5 relative group"
           title="Hızlı Ciro veya Gider Ekle"
@@ -88,10 +97,10 @@ export const MobileNav: React.FC = () => {
             <Plus className="w-6 h-6 stroke-[2.5]" />
           </div>
           <span className="text-[9px] font-bold text-emerald-400 mt-1">Hızlı Kasa</span>
-        </button>
+        </button>}
 
         {/* Tab 3: Giderler */}
-        <button
+        {!isPatron && <button
           onClick={() => handleSelect('expenses')}
           className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
             ['expenses', 'expense_new', 'expense_camera', 'expense_accounting'].includes(activeTab) ? 'text-rose-400' : 'text-zinc-400 hover:text-zinc-200'
@@ -99,7 +108,7 @@ export const MobileNav: React.FC = () => {
         >
           <Receipt className="w-4 h-4" />
           <span>Giderler</span>
-        </button>
+        </button>}
 
         {/* Tab 4: More */}
         <button
@@ -132,7 +141,7 @@ export const MobileNav: React.FC = () => {
 
             {/* Quick Action Cards in Drawer */}
             <div className="grid grid-cols-2 gap-2.5">
-              <button
+              {!isPatron && <button
                 onClick={() => openFastAction('revenue')}
                 className="flex items-center gap-2.5 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-left active:scale-98 transition-all"
               >
@@ -141,9 +150,9 @@ export const MobileNav: React.FC = () => {
                   <span className="text-xs font-bold block">Hızlı Ciro Gir</span>
                   <span className="text-[10px] text-zinc-400">POS & Nakit Kasa</span>
                 </div>
-              </button>
+              </button>}
 
-              <button
+              {!isPatron && <button
                 onClick={() => openFastAction('expense')}
                 className="flex items-center gap-2.5 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-left active:scale-98 transition-all"
               >
@@ -152,7 +161,7 @@ export const MobileNav: React.FC = () => {
                   <span className="text-xs font-bold block">Hızlı Gider Ekle</span>
                   <span className="text-[10px] text-zinc-400">Fiş & Fatura Çek</span>
                 </div>
-              </button>
+              </button>}
             </div>
 
             {/* PWA Install Promo inside drawer */}
@@ -162,23 +171,23 @@ export const MobileNav: React.FC = () => {
 
             {/* Navigation Grid */}
             <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
+              {!isPatron && <button
                 onClick={() => handleSelect('staff')}
                 className="flex items-center gap-2.5 p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-left text-xs font-medium text-zinc-200 hover:border-zinc-700"
               >
                 <Users className="w-4 h-4 text-emerald-400" />
                 <span>Personeller & Yevmiye</span>
-              </button>
+              </button>}
 
-              <button
+              {!isPatron && <button
                 onClick={() => handleSelect('reports')}
                 className="flex items-center gap-2.5 p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-left text-xs font-medium text-zinc-200 hover:border-zinc-700"
               >
                 <BarChart3 className="w-4 h-4 text-indigo-400" />
                 <span>Finansal Raporlar</span>
-              </button>
+              </button>}
 
-              {currentUser && (
+              {currentUser && !isPatron && (
                 <button
                   onClick={() => handleSelect('expense_categories')}
                   className="flex items-center gap-2.5 p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-left text-xs font-medium text-zinc-200 hover:border-zinc-700"

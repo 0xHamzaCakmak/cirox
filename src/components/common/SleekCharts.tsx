@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 
 // Trend Area Chart with dual lines (Ciro & Gider)
 export interface TrendDataPoint {
@@ -11,22 +11,39 @@ export interface TrendDataPoint {
 export const TrendLineChart: React.FC<{
   data: TrendDataPoint[];
   height?: number;
-}> = ({ data, height = 240 }) => {
+  fit?: boolean;
+}> = ({ data, height: suppliedHeight = 240, fit = false }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [bounds, setBounds] = useState({ width: 600, height: suppliedHeight });
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!fit || !svg) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) setBounds(previous => previous.width === rect.width && previous.height === rect.height
+        ? previous : { width: rect.width, height: rect.height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(svg);
+    return () => observer.disconnect();
+  }, [fit]);
 
-  const maxVal = Math.max(...data.map((d) => Math.max(d.revenue, d.expense))) * 1.15;
+  const hasValues = data.some(point => point.revenue > 0 || point.expense > 0);
+  const maxVal = Math.max(0, ...data.map((d) => Math.max(d.revenue, d.expense))) * 1.15;
   const minVal = 0;
   const range = maxVal - minVal || 1;
 
-  const width = 600;
-  const paddingLeft = 40;
+  const width = fit ? bounds.width : 600;
+  const height = fit ? bounds.height : suppliedHeight;
+  const paddingLeft = fit ? 56 : 40;
   const paddingRight = 20;
-  const paddingTop = 20;
-  const paddingBottom = 35;
-  const plotWidth = width - paddingLeft - paddingRight;
-  const plotHeight = height - paddingTop - paddingBottom;
+  const paddingTop = fit ? Math.min(8, height * .1) : 20;
+  const paddingBottom = fit ? Math.min(26, height * .35) : 35;
+  const plotWidth = Math.max(1, width - paddingLeft - paddingRight);
+  const plotHeight = Math.max(1, height - paddingTop - paddingBottom);
 
-  const getX = (idx: number) => paddingLeft + (idx / (data.length - 1)) * plotWidth;
+  const getX = (idx: number) => paddingLeft + (idx / Math.max(1, data.length - 1)) * plotWidth;
   const getY = (val: number) => paddingTop + plotHeight - ((val - minVal) / range) * plotHeight;
 
   // Build SVG path for revenue
@@ -37,8 +54,9 @@ export const TrendLineChart: React.FC<{
   const expArea = `${getX(0)},${getY(0)} ${expPoints} ${getX(data.length - 1)},${getY(0)}`;
 
   return (
-    <div className="relative w-full overflow-hidden select-none">
+    <div data-financial-chart className={`relative w-full overflow-hidden select-none ${fit ? 'trend-chart--fit' : ''}`}>
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         className="w-full h-auto overflow-visible"
         preserveAspectRatio="xMidYMid meet"
@@ -68,16 +86,16 @@ export const TrendLineChart: React.FC<{
                 stroke="var(--chart-track, #27272a)"
                 strokeDasharray="4 4"
               />
-              <text
+              {(!fit || hasValues || ratio === 0) && <text
                 x={paddingLeft - 8}
                 y={y + 3}
                 fill="var(--chart-muted, #71717a)"
-                fontSize="10"
+                fontSize={fit ? 11 : 10}
                 textAnchor="end"
                 className="font-mono"
               >
-                {val.toFixed(1)}M ₺
-              </text>
+                {fit ? `${new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(hasValues ? range * ratio : 0)} ₺` : `${val.toFixed(1)}M ₺`}
+              </text>}
             </g>
           );
         })}
@@ -160,9 +178,9 @@ export const TrendLineChart: React.FC<{
               {/* X Axis labels */}
               <text
                 x={x}
-                y={height - 10}
+                y={fit ? height - Math.min(10, height * .1) : height - 10}
                 fill={isHovered ? 'var(--chart-text, #f4f4f5)' : 'var(--chart-muted, #71717a)'}
-                fontSize="10"
+                fontSize={fit ? 11 : 10}
                 textAnchor="middle"
                 className="transition-colors duration-150"
               >
@@ -206,7 +224,7 @@ export const TrendLineChart: React.FC<{
       )}
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-2 text-xs text-zinc-400">
+      <div className="trend-chart-legend flex items-center justify-center gap-6 mt-2 text-xs text-zinc-400">
         <div className="flex items-center gap-2">
           <span className="w-3 h-1 rounded-full bg-emerald-500" />
           <span>Toplam Ciro</span>
@@ -215,7 +233,7 @@ export const TrendLineChart: React.FC<{
           <span className="w-3 h-1 rounded-full bg-rose-500" />
           <span>Toplam Gider</span>
         </div>
-        <div className="flex items-center gap-2 text-zinc-500">
+        <div className="trend-chart-legend-note flex items-center gap-2 text-zinc-500">
           <span>Net Fark: Yeşil bölge marjı</span>
         </div>
       </div>
@@ -235,7 +253,8 @@ export const DonutBreakdownChart: React.FC<{
   centerLabel?: string;
   centerValue?: string;
   size?: number;
-}> = ({ segments, centerLabel, centerValue, size = 180 }) => {
+  responsive?: boolean;
+}> = ({ segments, centerLabel, centerValue, size = 180, responsive = false }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const total = segments.reduce((sum, s) => sum + s.value, 0) || 1;
 
@@ -246,8 +265,8 @@ export const DonutBreakdownChart: React.FC<{
   let cumulativePercent = 0;
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-5">
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div data-financial-chart className={responsive ? 'branch-responsive-donut' : 'flex flex-col sm:flex-row items-center gap-5'}>
+      <div className="relative shrink-0" style={responsive ? { width: '100%', maxWidth: size, aspectRatio: '1' } : { width: size, height: size }}>
         <svg viewBox="0 0 160 160" className="w-full h-full -rotate-90 transform">
           {/* Background circle track */}
           <circle
@@ -299,7 +318,7 @@ export const DonutBreakdownChart: React.FC<{
       </div>
 
       {/* Legend list */}
-      <div className="flex-1 w-full space-y-2">
+      <div className="donut-legend flex-1 w-full space-y-2">
         {segments.map((seg, idx) => {
           const pct = Math.round((seg.value / total) * 100);
           const isHovered = hoveredIdx === idx;

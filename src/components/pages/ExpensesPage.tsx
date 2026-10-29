@@ -44,7 +44,7 @@ export const ExpensesPage: React.FC = () => {
     deleteExpense,
     expenseCategories,
     staffList,
-    currentUser,
+    currentUser: actor, viewUser: currentUser,
     showNotification,
     activeTab,
     setActiveTab,
@@ -61,7 +61,7 @@ export const ExpensesPage: React.FC = () => {
   const [selectedExpenseForReceipt, setSelectedExpenseForReceipt] = useState<ExpenseRecord | null>(null);
 
   // New Expense Form state
-  const [formBranchId, setFormBranchId] = useState(isMerkez ? selectedBranchId || 'branch-1' : userBranchId);
+  const [formBranchId, setFormBranchId] = useState(isMerkez ? selectedBranchId || branches[0]?.id || '' : userBranchId);
   const [formCategoryId, setFormCategoryId] = useState('cat-2'); // Default to Kasap
   const [formAmount, setFormAmount] = useState<number | ''>('');
   const [formDescription, setFormDescription] = useState('');
@@ -75,7 +75,7 @@ export const ExpensesPage: React.FC = () => {
   const requestId = useRef(createClientId());
   const submitting = useRef(false);
   const [deletingId, setDeletingId] = useState('');
-  const readOnly = currentUser?.role !== 'sube';
+  const readOnly = branches.length === 0 || (actor?.role !== 'admin' && currentUser?.role !== 'sube');
   const [formVatRate, setFormVatRate] = useState<number>(1);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);

@@ -232,12 +232,19 @@ export interface StaffPaymentHistory {
   description: string;
 }
 
+export type BranchListSort = 'revenue-desc' | 'revenue-asc' | 'expense-desc' | 'expense-asc' | 'net-desc';
+
 export type PageTab = 
   | 'admin_tenants'
   | 'admin_billing'
+  | 'admin_branch_centers'
+  | 'admin_center_create'
+  | 'admin_establishment_create'
+  | 'admin_businesses'
   | 'dashboard' 
   | 'branches' 
   | 'branch_detail' 
+  | 'branch_transactions'
   | 'revenue_entry' 
   | 'expenses' 
   | 'expense_new'

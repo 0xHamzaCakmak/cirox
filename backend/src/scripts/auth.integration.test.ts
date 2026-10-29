@@ -62,6 +62,9 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     });
     assert.equal((await request('/admin/tenants')).status, 401);
     assert.equal((await request('/admin/establishments', fixture('A'))).status, 401);
+    assert.equal((await request('/admin/centers', {})).status, 401);
+    assert.equal((await request('/admin/accounts')).status, 401);
+    assert.equal((await request('/admin/users/' + adminId + '/reset-password', { newPassword: 'ResetPassword123' })).status, 401);
     assert.equal((await request('/auth/login', { email: `admin-${tag}@example.test`, password: 'wrong' })).status, 401);
     assert.equal((await request('/auth/login', { email: `missing-${tag}@example.test`, password })).status, 401);
     const login = await request('/auth/login', { email: ` ADMIN-${tag}@EXAMPLE.TEST `, password });
@@ -73,6 +76,37 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     const loginData = await login.json() as BootstrapData;
     assert.equal(loginData.user.role, 'admin');
     assert.ok(!JSON.stringify(loginData).includes('password'));
+    const centerInput = {
+      name: 'Patron Center ' + tag, username: 'patron' + tag, ownerName: 'Test Patron',
+      ownerEmail: `patron-${tag}@example.test`, ownerPassword: password,
+      ownerPhone: '', branchLimit: 1, price: 0, billingMethod: 'manual', notes: 'Integration test',
+    };
+    assert.equal((await request('/admin/centers', { ...centerInput, branchLimit: 0 }, adminCookie)).status, 400);
+    assert.equal((await request('/admin/centers', { ...centerInput, role: 'admin' }, adminCookie)).status, 400);
+    const patronResponse = await request('/admin/centers', centerInput, adminCookie);
+    assert.equal(patronResponse.status, 201);
+    const patron = await patronResponse.json() as { companyId: string; userId: string; bootstrap: BootstrapData };
+    companies.push(patron.companyId); userIds.push(patron.userId);
+    assert.equal(patron.bootstrap.user.role, 'admin', 'center creation must preserve the admin session');
+    assert.equal(patron.bootstrap.companies.find(company => company.id === patron.companyId)?.kind, 'center');
+    assert.equal(patron.bootstrap.branches.filter(branch => branch.companyId === patron.companyId).length, 0, 'a center must not create a branch');
+    const patronUser = await appDataSource.getRepository(UserEntity).createQueryBuilder('user').addSelect('user.passwordHash')
+      .where('user.id = :id', { id: patron.userId }).getOneOrFail();
+    assert.equal(patronUser.role, 'merkez'); assert.equal(patronUser.branchId, null);
+    assert.notEqual(patronUser.passwordHash, password);
+    assert.ok(!JSON.stringify(patron).includes(patronUser.passwordHash));
+    const beforeDuplicate = await appDataSource.getRepository(CompanyEntity).count();
+    assert.equal((await request('/admin/centers', { ...centerInput, ownerEmail: `other-${tag}@example.test` }, adminCookie)).status, 409);
+    assert.equal((await request('/admin/centers', { ...centerInput, username: 'other_' + tag }, adminCookie)).status, 409);
+    assert.equal(await appDataSource.getRepository(CompanyEntity).count(), beforeDuplicate, 'duplicate credentials must roll back center creation');
+    const patronLogin = await request('/auth/login', { identifier: centerInput.username.toUpperCase(), password });
+    assert.equal(patronLogin.status, 200);
+    const patronCookie = patronLogin.headers.get('set-cookie')!.split(';')[0];
+    const patronData = await patronLogin.json() as BootstrapData;
+    assert.equal(patronData.user.role, 'merkez'); assert.equal(patronData.branches.length, 0);
+    assert.equal((await request('/admin/centers', { ...centerInput, username: 'forbidden_' + tag }, patronCookie)).status, 403);
+    assert.equal((await request('/admin/accounts', undefined, patronCookie)).status, 403);
+    assert.equal((await request('/admin/users/' + patron.userId + '/reset-password', { newPassword: 'ResetPassword123' }, patronCookie)).status, 403);
     assert.equal((await request('/admin/establishments', fixture('X'), adminCookie, 'https://evil.example')).status, 403);
     const createdResponse = await request('/admin/establishments', fixture('A'), adminCookie);
     assert.equal(createdResponse.status, 201);
@@ -139,6 +173,7 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     assert.equal(centerLogin.status, 200);
     const centerCookie = centerLogin.headers.get('set-cookie')!.split(';')[0];
     const centerData = await centerLogin.json() as BootstrapData;
+    assert.equal(centerData.managedUsers, undefined, 'customer sessions must never receive the admin account directory');
     assert.deepEqual(centerData.branches.map(branch => branch.id), [created.branchId]);
     assert.equal(centerData.branches[0].readOnly, true);
     assert.equal((await request('/branches/' + created.branchId, undefined, centerCookie)).status, 200);
@@ -158,6 +193,10 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     assert.equal((await request('/admin/establishments/' + independent.branchId + '/center', { centerCompanyId: centerA }, adminCookie)).status, 200);
     const monitored = await request('/auth/me', undefined, centerCookie);
     assert.deepEqual(new Set(((await monitored.json()) as BootstrapData).branches.map(branch => branch.id)), new Set([created.branchId, independent.branchId]));
+    const accountsWithLinks = await request('/admin/accounts', undefined, adminCookie);
+    assert.equal(accountsWithLinks.status, 200);
+    const linkedAccounts = (await accountsWithLinks.json()).accounts;
+    assert.equal(linkedAccounts.find((account: { id: string }) => account.id === centerA).branches.length, 2, 'directory must count all linked businesses');
     const afterLink = await request('/auth/me', undefined, independentCookie);
     const afterLinkData = await afterLink.json() as BootstrapData;
     assert.equal(afterLinkData.user.companyId, independent.companyId, 'linking must not change business ownership or invalidate its session');
@@ -167,10 +206,23 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     await appDataSource.getRepository(CompanyEntity).update(centerA, { status: 'active' });
     assert.equal((await request('/admin/establishments/' + independent.branchId + '/center', { centerCompanyId: null }, adminCookie)).status, 200);
     assert.equal((await request('/branches/' + independent.branchId, undefined, centerCookie)).status, 403, 'unlink revokes monitoring immediately');
+    assert.equal((await request('/admin/establishments/' + independent.branchId + '/center', { centerCompanyId: patron.companyId }, adminCookie)).status, 200);
+    const patronLinked = await request('/auth/me', undefined, patronCookie);
+    const patronLinkedData = await patronLinked.json() as BootstrapData;
+    assert.deepEqual(patronLinkedData.branches.map(branch => branch.id), [independent.branchId]);
+    assert.equal(patronLinkedData.branches[0].readOnly, true);
+    assert.equal((await request('/branches/' + independent.branchId, {}, patronCookie)).status, 403);
+    assert.equal((await request('/admin/establishments/' + second.branchId + '/center', { centerCompanyId: patron.companyId }, adminCookie)).status, 409);
+    assert.equal((await request('/admin/establishments/' + independent.branchId + '/center', { centerCompanyId: patron.companyId }, patronCookie)).status, 403);
+    const branchAfterPatronLink = await request('/auth/me', undefined, independentCookie);
+    assert.equal((await branchAfterPatronLink.json()).user.companyId, independent.companyId, 'patron assignment must preserve branch ownership and login');
+    assert.equal((await request('/admin/establishments/' + independent.branchId + '/center', { centerCompanyId: null }, adminCookie)).status, 200);
+    assert.equal((await request('/branches/' + independent.branchId, undefined, patronCookie)).status, 403);
     const branchLogin = await request('/auth/login', { email: fixture('A').ownerEmail, password });
     assert.equal(branchLogin.status, 200);
     const branchCookie = branchLogin.headers.get('set-cookie')!.split(';')[0];
     const branchData = await branchLogin.json() as BootstrapData;
+    assert.equal(branchData.managedUsers, undefined);
     assert.equal(branchData.user.role, 'sube');
     assert.deepEqual(branchData.companies.map(company => company.id), [created.companyId]);
     assert.deepEqual(branchData.branches.map(branch => branch.id), [created.branchId]);
@@ -202,6 +254,12 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     const reloadedSettings = await request('/auth/me', undefined, independentCookie);
     assert.equal((await reloadedSettings.json()).branches[0].contactEmail, settings.contactEmail);
     assert.equal((await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: second.branchId })).legalName, '');
+    const adminSettings = await request('/settings/business', { ...settings, branchId: second.branchId, legalName: 'Admin Managed Branch' }, adminCookie);
+    assert.equal(adminSettings.status, 200, 'super admin may explicitly edit the selected branch');
+    assert.equal((await adminSettings.json()).bootstrap.user.role, 'admin');
+    assert.equal((await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: second.branchId })).legalName, 'Admin Managed Branch');
+    assert.equal((await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: independent.branchId })).legalName, settings.legalName);
+    await writableBranch(await appDataSource.getRepository(UserEntity).findOneByOrFail({ id: adminId }), second.branchId);
     const profile = { name: 'Updated Owner', username: 'owner_' + tag, email: 'updated-' + tag + '@example.test', phone: '05329876543', currentPassword: password };
     const wrongCurrentPassword = await request('/settings/profile', { ...profile, currentPassword: 'wrong-password' }, independentCookie);
     assert.equal(wrongCurrentPassword.status, 401); assert.equal((await wrongCurrentPassword.json()).code, undefined);
@@ -225,9 +283,69 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     assert.equal((await request('/auth/me', undefined, anotherCookie)).status, 401);
     assert.equal((await request('/auth/login', { identifier: profile.username, password })).status, 401);
     assert.equal((await request('/auth/login', { identifier: profile.username, password: nextPassword })).status, 200);
+    const accountsResponse = await request('/admin/accounts', undefined, adminCookie);
+    assert.equal(accountsResponse.status, 200);
+    const accountDirectory = await accountsResponse.json();
+    const directoryUsers = accountDirectory.accounts.flatMap((account: { users: { id: string; role: string }[] }) => account.users);
+    assert.ok(!directoryUsers.some((user: { role: string }) => user.role === 'admin'), 'directory must exclude super admin accounts');
+    assert.ok(!JSON.stringify(accountDirectory).includes('passwordHash'), 'password hashes must never be returned');
+    const businessDirectory = accountDirectory.accounts.find((account: { id: string }) => account.id === independent.companyId);
+    assert.equal(businessDirectory.users[0].username, profile.username, 'directory must show the current login profile, not stale company contact data');
+    assert.equal(businessDirectory.users[0].email, profile.email);
+    assert.equal(businessDirectory.users[0].phone, profile.phone);
+    const patronDirectory = accountDirectory.accounts.find((account: { id: string }) => account.id === patron.companyId);
+    assert.equal(patronDirectory.kind, 'center'); assert.equal(patronDirectory.users[0].id, patron.userId);
+    assert.equal((await request('/admin/accounts', undefined, rotatedCookie)).status, 403);
+    assert.equal((await request('/admin/users/' + patron.userId + '/reset-password', { newPassword: 'ResetPassword123' }, rotatedCookie)).status, 403);
+    assert.equal((await request('/admin/users/' + adminId + '/reset-password', { newPassword: 'ResetPassword123' }, adminCookie)).status, 403, 'business account resets must not target an admin');
+    assert.equal((await request('/admin/users/' + randomUUID() + '/reset-password', { newPassword: 'ResetPassword123' }, adminCookie)).status, 404);
+    assert.equal((await request('/admin/users/' + patron.userId + '/reset-password', { newPassword: 'short' }, adminCookie)).status, 400);
+    assert.equal((await request('/admin/users/' + patron.userId + '/reset-password', { newPassword: 'ResetPassword123', role: 'admin' }, adminCookie)).status, 400);
+    for (const target of [
+      { id: patron.userId, identifier: centerInput.username, oldPassword: password, cookie: patronCookie },
+      { id: independent.userId, identifier: profile.username, oldPassword: nextPassword, cookie: rotatedCookie },
+    ]) {
+      const resetPassword = 'AdminReset-' + randomUUID();
+      const unchangedBranch = await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: independent.branchId });
+      const resetResponse = await request('/admin/users/' + target.id + '/reset-password', { newPassword: resetPassword }, adminCookie);
+      assert.equal(resetResponse.status, 204);
+      assert.equal(await appDataSource.getRepository(SessionEntity).count({ where: { userId: target.id } }), 0, 'reset must revoke every session for the selected user');
+      assert.equal((await request('/auth/me', undefined, target.cookie)).status, 401);
+      assert.equal((await request('/auth/me', undefined, adminCookie)).status, 200, 'reset must preserve the super admin session');
+      assert.equal((await request('/auth/me', undefined, centerCookie)).status, 200, 'reset must preserve other users sessions');
+      assert.equal((await request('/auth/login', { identifier: target.identifier, password: target.oldPassword })).status, 401);
+      const resetLogin = await request('/auth/login', { identifier: target.identifier, password: resetPassword });
+      assert.equal(resetLogin.status, 200);
+      assert.equal((await resetLogin.json()).user.id, target.id);
+      const resetStored = await appDataSource.getRepository(UserEntity).createQueryBuilder('user').addSelect('user.passwordHash')
+        .where('user.id = :id', { id: target.id }).getOneOrFail();
+      assert.match(resetStored.passwordHash, /^scrypt:/); assert.notEqual(resetStored.passwordHash, resetPassword);
+      assert.deepEqual(await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: independent.branchId }), unchangedBranch, 'password reset must not alter branch data');
+    }
+    const secondProfile = { name: 'Admin Updated Owner', username: fixture('B').establishmentCode.toLowerCase(), email: fixture('B').ownerEmail, phone: '05321112233' };
+    assert.equal((await request('/admin/users/' + second.userId + '/profile', secondProfile, centerCookie)).status, 403);
+    assert.equal((await request('/admin/users/' + adminId + '/profile', secondProfile, adminCookie)).status, 403);
+    assert.equal((await request('/admin/users/' + second.userId + '/profile', { ...secondProfile, role: 'admin' }, adminCookie)).status, 400);
+    const adminProfile = await request('/admin/users/' + second.userId + '/profile', secondProfile, adminCookie);
+    assert.equal(adminProfile.status, 200, 'super admin can update the selected account without its current password');
+    const adminProfileData = await adminProfile.json() as { bootstrap: BootstrapData };
+    assert.equal(adminProfileData.bootstrap.user.id, adminId);
+    const managedSecond = adminProfileData.bootstrap.managedUsers!.find(user => user.id === second.userId)!;
+    assert.equal(managedSecond.name, secondProfile.name); assert.equal(managedSecond.phone, secondProfile.phone);
+    assert.equal(managedSecond.role, 'sube'); assert.equal(managedSecond.branchId, second.branchId);
+    assert.ok(!JSON.stringify(adminProfileData).includes('passwordHash'));
+    const adminRevenue = { branchId: independent.branchId, date: '2026-10-27', creditCard: 125, cash: 75, online: 0, other: 0, notes: 'Super admin integration test', receiptIds: [] };
+    assert.equal((await request('/branch/revenue', adminRevenue, centerCookie)).status, 403);
+    const adminSavedRevenue = await request('/branch/revenue', adminRevenue, adminCookie);
+    assert.equal(adminSavedRevenue.status, 200);
+    const adminRevenueRecord = (await adminSavedRevenue.json()).record;
+    assert.equal(adminRevenueRecord.total, 200); assert.equal(adminRevenueRecord.companyId, independent.companyId);
+    assert.equal(adminRevenueRecord.submittedBy, 'Test Admin', 'changes must be attributed to the authenticated admin, not the viewed customer');
+    assert.equal((await request('/auth/me', undefined, adminCookie)).status, 200);
     assert.equal((await request('/auth/logout', {}, adminCookie)).status, 204);
   } finally {
     // Remove only records created by this test; preserve the seeded admin and user data.
+    for (const id of branchIds) await appDataSource.query('DELETE FROM daily_revenues WHERE branch_id=?', [id]);
     for (const id of userIds) {
       await appDataSource.getRepository(SessionEntity).delete({ userId: id });
       await appDataSource.getRepository(UserEntity).delete(id);

@@ -13,6 +13,7 @@ import { expensesRouter } from './routes/expenses';
 import { expenseCategoriesRouter } from './routes/expense-categories';
 import { staffRouter } from './routes/staff';
 import { settingsRouter } from './routes/settings';
+import { notificationsRouter } from './routes/notifications';
 
 export function createApp() {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp() {
   app.use('/api/v1/branch', expenseCategoriesRouter);
   app.use('/api/v1/branch', staffRouter);
   app.use('/api/v1/settings', settingsRouter);
+  app.use('/api/v1/notifications', notificationsRouter);
 
   app.get('/api/v1/health', (_req, res) => {
     res.json({ status: 'ok', service: 'sube-analitik-cirox-backend' });

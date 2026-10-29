@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Building2,
   Shield,
-  Plus,
   Search,
   CreditCard,
   Building,
@@ -29,12 +28,9 @@ import {
   Check,
   Calendar,
   Layers,
-  Store,
-  KeyRound,
-  UserCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Company, BillingMethod, PlanTier } from '../../types';
+import { Company, BillingMethod } from '../../types';
 
 interface BankAccount {
   bankName: string;
@@ -77,8 +73,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
     companies,
     activeCompanyId,
     setActiveCompanyId,
-    createCompany,
-    createEstablishmentAndStart,
     toggleCompanyStatus,
     updateCompanySubscription,
     chargeCompany,
@@ -101,36 +95,12 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
   const [reminderTier, setReminderTier] = useState<'3_days' | '7_days' | '10_days'>('3_days');
 
   // Modal States
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBankAccountsModal, setShowBankAccountsModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
-
-  // Establishment / Lisans Ekle Form State
-  const centers = useMemo(() => companies.filter(company => company.kind !== 'business'), [companies]);
-  const [merkezOption, setMerkezOption] = useState<'existing' | 'none'>('none');
-  const [selectedMerkezId, setSelectedMerkezId] = useState('');
-  useEffect(() => {
-    if (selectedMerkezId && !centers.some(company => company.id === selectedMerkezId)) {
-      setSelectedMerkezId('');
-      setMerkezOption('none');
-    }
-  }, [centers, selectedMerkezId]);
-  const [establishmentName, setEstablishmentName] = useState('Savcı Usta');
-  const [establishmentCode, setEstablishmentCode] = useState('SAVCI');
-  const [establishmentCity, setEstablishmentCity] = useState('İstanbul');
-  const [establishmentDistrict, setEstablishmentDistrict] = useState('Sarıyer');
-  const [establishmentOwnerName, setEstablishmentOwnerName] = useState('Savcı Usta');
-  const [establishmentOwnerEmail, setEstablishmentOwnerEmail] = useState('savci@sariyerborekcisi.com');
-  const [establishmentOwnerPassword, setEstablishmentOwnerPassword] = useState('123456');
-  const [establishmentOwnerPhone, setEstablishmentOwnerPhone] = useState('0532 999 88 77');
-  const [establishmentPrice, setEstablishmentPrice] = useState<number>(15000);
-  const [establishmentBillingMethod, setEstablishmentBillingMethod] = useState<BillingMethod>('bank_transfer');
-  const [establishmentAutoLaunch, setEstablishmentAutoLaunch] = useState<boolean>(true);
-  const [establishmentNotes, setEstablishmentNotes] = useState('');
 
   // Charge Modal Form State
   const [chargeAmount, setChargeAmount] = useState<number>(0);
@@ -265,39 +235,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
     setShowEditModal(false);
   };
 
-  const createSubmitting = React.useRef(false);
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!establishmentName.trim() || !establishmentOwnerName.trim()) return;
-    if (createSubmitting.current) return;
-    createSubmitting.current = true;
-
-    try {
-      await createEstablishmentAndStart({
-        merkezOption: selectedMerkezId ? 'existing' : 'none',
-        selectedCompanyId: selectedMerkezId,
-        establishmentName,
-        establishmentCode,
-        city: establishmentCity,
-        district: establishmentDistrict,
-        ownerName: establishmentOwnerName,
-        ownerEmail: establishmentOwnerEmail,
-        ownerPassword: establishmentOwnerPassword,
-        ownerPhone: establishmentOwnerPhone,
-        price: establishmentPrice,
-        billingMethod: establishmentBillingMethod,
-        notes: establishmentNotes,
-        autoLaunch: establishmentAutoLaunch,
-      });
-
-      setShowCreateModal(false);
-    } catch (error) {
-      showNotification(error instanceof Error ? error.message : 'İşletme oluşturulamadı.', 'warning');
-    } finally {
-      createSubmitting.current = false;
-    }
-  };
-
   const handleEnterCompanyAsMerkez = (comp: Company) => {
     setActiveCompanyId(comp.id);
     switchPerspective('merkez', undefined, comp.id);
@@ -322,7 +259,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Kayıtlı restoran işletmeleri, şube lisansları, paketler ve yetkili hesapları.
+              Merkez / patron hesapları, şube lisansları, paketler ve yetkili hesapları.
             </p>
           </div>
         </div>
@@ -343,14 +280,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
           >
             <Landmark className="w-3.5 h-3.5 text-zinc-400" />
             <span>Banka Hesapları</span>
-          </button>
-
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm shadow-indigo-600/30"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>İşletme / Lisans Ekle</span>
           </button>
         </div>
       </div>
@@ -665,6 +594,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                           <div>
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-zinc-100">{comp.name}</span>
+                              {comp.kind === 'center' && <span className="rounded bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">Merkez / Patron</span>}
                               {isCurrentActive && (
                                 <span className="px-1.5 py-0.2 text-[9px] rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
                                   Aktif Seçili
@@ -1239,303 +1169,6 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
         </div>
       )}
 
-      {/* 9. MODAL: İŞLETME / LİSANS EKLE */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-2xl rounded-2xl p-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
-                  <Store className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-100">Yeni İşletme / Lisans Ekle</h3>
-                  <p className="text-[11px] text-zinc-400">
-                    İşletme hesabını oluşturun; varsa bağlı olacağı mevcut merkezi seçin
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-zinc-400 hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-4 mt-4">
-              {/* Bölüm 1: Merkez Seçimi */}
-              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                    1. Bağlı Olacağı Merkez (Firma)
-                  </label>
-                  <div className="flex items-center gap-1 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setMerkezOption('existing')}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                        merkezOption === 'existing'
-                          ? 'bg-indigo-600 text-white font-semibold'
-                          : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
-                      }`}
-                    >
-                      Mevcut Merkeze Bağla
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMerkezOption('none'); setSelectedMerkezId(''); }}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                        merkezOption === 'none'
-                          ? 'bg-indigo-600 text-white font-semibold'
-                          : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
-                      }`}
-                    >
-                      Merkez yok
-                    </button>
-                  </div>
-                </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Bağlı Olacağı Merkez (İsteğe Bağlı)
-                    </label>
-                    <select
-                      value={selectedMerkezId}
-                      onChange={(e) => { setSelectedMerkezId(e.target.value); setMerkezOption(e.target.value ? 'existing' : 'none'); }}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 font-medium"
-                    >
-                      <option value="">Merkez yok — Bağımsız işletme</option>
-                      {centers.map((comp) => (
-                        <option key={comp.id} value={comp.id}>
-                          {comp.name} ({comp.code}) — {comp.branchesCount} Şube — {comp.sector}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-zinc-500 mt-1.5 flex items-center gap-1">
-                      <span>Merkez seçilmezse işletme bağımsız çalışır. Seçilen merkez işletmeyi yalnızca görüntüleyebilir; kayıtlarını değiştiremez.</span>
-                    </p>
-                  </div>
-              </div>
-
-              {/* Bölüm 2: İşletme / Şube Bilgileri */}
-              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 space-y-3">
-                <label className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-emerald-400" />
-                  2. İşletme / Şube Bilgileri
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      İşletme / Şube Adı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Örn: Savcı Usta"
-                      value={establishmentName}
-                      onChange={(e) => setEstablishmentName(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Kullanıcı Adı *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Örn: SAVCI"
-                      value={establishmentCode}
-                      required
-                      minLength={3}
-                      maxLength={32}
-                      pattern="[A-Za-z0-9_.-]+"
-                      onChange={(e) => setEstablishmentCode(e.target.value.toUpperCase())}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 uppercase font-mono focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Şehir
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Örn: İstanbul"
-                      value={establishmentCity}
-                      onChange={(e) => setEstablishmentCity(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      İlçe / Bölge
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Örn: Sarıyer"
-                      value={establishmentDistrict}
-                      onChange={(e) => setEstablishmentDistrict(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bölüm 3: Giriş Bilgileri (İşletme bu bilgilerle giriş yapacak) */}
-              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    3. İşletme Giriş ve Yetkili Bilgileri (Giriş Yapılacak Hesap)
-                  </label>
-                  <span className="text-[10px] text-amber-400/90 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    Giriş Yetkisi Verilir
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Yetkili Adı Soyadı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Örn: Savcı Usta"
-                      value={establishmentOwnerName}
-                      onChange={(e) => setEstablishmentOwnerName(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Telefon Numarası
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="0532 999 88 77"
-                      value={establishmentOwnerPhone}
-                      onChange={(e) => setEstablishmentOwnerPhone(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Giriş E-postası *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="Örn: savci@sariyerborekcisi.com"
-                      value={establishmentOwnerEmail}
-                      onChange={(e) => setEstablishmentOwnerEmail(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                      Giriş Şifresi *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="123456"
-                      value={establishmentOwnerPassword}
-                      onChange={(e) => setEstablishmentOwnerPassword(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-start gap-2">
-                  <UserCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                  <span>
-                    İşletme sorumlusu kullanıcı adı veya e-postası ve şifresi ile sisteme doğrudan giriş yapabilir.
-                  </span>
-                </div>
-              </div>
-
-              {/* Bölüm 4: Lisanslama ve Tahsilat */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Yıllık Lisans Bedeli (₺)
-                  </label>
-                  <input
-                    type="number"
-                    value={establishmentPrice}
-                    onChange={(e) => setEstablishmentPrice(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:border-zinc-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Tahsilat Modeli
-                  </label>
-                  <select
-                    value={establishmentBillingMethod}
-                    onChange={(e) => setEstablishmentBillingMethod(e.target.value as BillingMethod)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-700"
-                  >
-                    <option value="bank_transfer">Banka Havalesi / EFT</option>
-                    <option value="credit_card">Kredi Kartı / Sanal POS</option>
-                    <option value="manual">Manuel Nakit</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Hızlı Başlat Seçeneği */}
-              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-zinc-950 border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={establishmentAutoLaunch}
-                  onChange={(e) => setEstablishmentAutoLaunch(e.target.checked)}
-                  className="rounded border-zinc-700 text-indigo-600 focus:ring-indigo-500 w-4 h-4 bg-zinc-900"
-                />
-                <div className="text-left">
-                  <span className="text-xs font-bold text-zinc-200 block">
-                    İşletmeyi Oluştur ve Hemen Başlat (Hesaba Otomatik Giriş Yap)
-                  </span>
-                  <span className="text-[11px] text-zinc-400">
-                    Oluşturduktan sonra doğrudan bu işletmenin ciro giriş ekranı başlatılır.
-                  </span>
-                </div>
-              </label>
-
-              {/* Alt Butonlar */}
-              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium"
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
-                >
-                  <Store className="w-3.5 h-3.5" />
-                  <span>İşletmeyi Oluştur ve Başlat</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

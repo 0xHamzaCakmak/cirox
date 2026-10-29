@@ -12,11 +12,17 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        workbox: {
+          cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/^\/api(?:\/|$)/],
+          runtimeCaching: [{ urlPattern: /\/api\//, handler: 'NetworkOnly', method: 'GET' }],
+        },
         manifest: {
           id: '/',
-          name: 'Şube Analitik - Çoklu Şube Yönetim & Analitik Portalı',
-          short_name: 'ŞubeMobil',
-          description: 'Şubeler için mobil hızlı ciro, gelir ve gider kayıt yönetim sistemi.',
+          name: 'CiroX — Şube ve Finans Yönetimi',
+          short_name: 'CiroX',
+          lang: 'tr',
+          description: 'Şubelerin ciro, gider ve finansal performansını takip edin.',
           theme_color: '#09090b',
           background_color: '#09090b',
           display: 'standalone',

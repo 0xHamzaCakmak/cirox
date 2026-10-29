@@ -25,10 +25,10 @@ import { useApp } from '../../context/AppContext';
 import { ExpenseCategory } from '../../types';
 
 export const ExpenseCategoriesPage: React.FC = () => {
-  const { expenseCategories, addExpenseCategory, updateExpenseCategory, showNotification, currentUser, branches, selectedBranchId, setSelectedBranchId, activeTab, setActiveTab } = useApp();
+  const { expenseCategories, addExpenseCategory, updateExpenseCategory, showNotification, currentUser: actor, viewUser: currentUser, branches, selectedBranchId, setSelectedBranchId, activeTab, setActiveTab } = useApp();
   const branchId = currentUser?.branchId || (branches.some(branch => branch.id === selectedBranchId) ? selectedBranchId : branches[0]?.id) || '';
   const categories = useMemo(() => expenseCategories.filter(category => !category.branchId || category.branchId === branchId), [expenseCategories, branchId]);
-  const readOnly = currentUser?.role !== 'sube' || !branchId;
+  const readOnly = actor?.role !== 'admin' && currentUser?.role !== 'sube' || !branchId;
 
   const isModalOpen = activeTab === 'expense_category_new' || activeTab === 'expense_category_edit';
   const setIsModalOpen = (_open: boolean) => setActiveTab('expense_categories');

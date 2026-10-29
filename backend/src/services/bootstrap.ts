@@ -26,6 +26,7 @@ export async function bootstrapData(user: UserRow) {
   const branchUsers = branches.length ? await appDataSource.getRepository(UserEntity).find({
     where: { branchId: In(branches.map(branch => branch.id)), role: 'sube' },
   }) : [];
+  const centerUsers = user.role === 'admin' ? await appDataSource.getRepository(UserEntity).find({ where: { role: 'merkez' } }) : [];
   const centerIds = [...new Set(branches.map(branch => branch.centerCompanyId).filter((id): id is string => !!id))];
   const centers = centerIds.length ? await appDataSource.getRepository(CompanyEntity).find({ where: { id: In(centerIds), kind: 'center' } }) : [];
   const records = await revenueRecords(branches.map(branch => branch.id));
@@ -36,6 +37,8 @@ export async function bootstrapData(user: UserRow) {
   ]);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
   return {
+    ...(user.role === 'admin' ? { managedUsers: [...branchUsers, ...centerUsers].map(account =>
+      publicUser(account, companies.find(company => company.id === account.companyId), branches.find(branch => branch.id === account.branchId))) } : {}),
     dailyRevenueRecords: records,
     expenses, expenseCategories: categories, staffList: staff,
     staffPayments: expenses.filter(expense => expense.staffId && expense.categoryType === 'staff_based').map(expense => ({

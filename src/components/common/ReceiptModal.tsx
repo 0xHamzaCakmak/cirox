@@ -82,15 +82,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ expense, onClose }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm animate-fade-in">
+    <div className="receipt-modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm animate-fade-in">
       <div
         className="fixed inset-0"
         onClick={onClose}
       />
 
-      <div className="relative z-10 bg-zinc-900 border border-zinc-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-label="Fiş ve fatura görseli" className="receipt-modal-panel relative z-10 bg-zinc-900 border border-zinc-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Top Header */}
-        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
+        <div className="receipt-modal-header px-5 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               <FileCheck className="w-4 h-4" />
@@ -174,7 +174,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ expense, onClose }) 
             <img src={photo.url} alt={photo.fileName} className="w-12 h-12 object-cover rounded" />
           </button>)}</div>}
         {/* Content Body: Image Viewport + Metadata Side Panel */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[350px]">
+        <div className="receipt-modal-body flex-1 flex flex-col md:flex-row overflow-hidden min-h-[350px]">
           {/* Image Display Area */}
           <div className="flex-1 bg-zinc-950 p-4 flex items-center justify-center overflow-auto relative select-none">
             {imageUrl ? (

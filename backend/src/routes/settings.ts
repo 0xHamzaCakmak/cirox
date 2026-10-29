@@ -8,6 +8,7 @@ import { BranchEntity, SessionEntity, UserEntity, type UserRow } from '../databa
 import { writableBranch } from '../services/branch-access';
 import { bootstrapData } from '../services/bootstrap';
 import { asyncRoute, HttpError } from '../http';
+import { recordBranchActivity } from '../services/notifications';
 
 export const settingsRouter = Router();
 settingsRouter.use(requireAuth);
@@ -16,12 +17,18 @@ const businessSchema = z.object({
   taxNumber: z.string().trim().regex(/^(?:\d{10,11})?$/), contactEmail: z.union([z.literal(''), z.email().max(128)]), phone: z.string().trim().max(32),
 }).strict();
 settingsRouter.post('/business', asyncRoute(async (req, res) => {
-  const parsed = businessSchema.safeParse(req.body);
-  if (!parsed.success) throw new HttpError(400, 'Şube bilgilerini kontrol edin. Vergi numarası boş veya 10–11 rakam, e-posta geçerli olmalıdır.');
   const user = res.locals.user as UserRow;
-  if (!user.branchId) throw new HttpError(403, 'Şube hesabı gerekli.');
-  const branch = await writableBranch(user, user.branchId);
-  await appDataSource.getRepository(BranchEntity).update(branch.id, parsed.data);
+  const { branchId, ...businessFields } = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  if (user.role !== 'admin' && branchId !== undefined) throw new HttpError(400, 'Şube hesabı başka bir şubeyi seçemez.');
+  const parsed = businessSchema.safeParse(user.role === 'admin' ? businessFields : req.body);
+  if (!parsed.success) throw new HttpError(400, 'Şube bilgilerini kontrol edin. Vergi numarası boş veya 10–11 rakam, e-posta geçerli olmalıdır.');
+  const targetBranchId = user.role === 'admin' ? z.string().uuid().parse(branchId) : user.branchId;
+  if (!targetBranchId) throw new HttpError(403, 'Şube hesabı gerekli.');
+  const branch = await writableBranch(user, targetBranchId);
+  await appDataSource.transaction(async manager => {
+    await manager.update(BranchEntity, branch.id, parsed.data);
+    await recordBranchActivity(manager, branch.id, user, { kind: 'settings_updated', tone: 'info', title: 'İşletme bilgileri güncellendi', detail: 'Şube iletişim ve resmi bilgileri güncellendi.' });
+  });
   res.json({ bootstrap: await bootstrapData(user) });
 }));
 const profileSchema = z.object({
@@ -44,6 +51,7 @@ settingsRouter.post('/profile', rateLimit({ windowMs: 15 * 60_000, limit: 20, le
     const changes = { name: input.name, username: input.username, email: input.email, phone: input.phone,
       ...(input.newPassword ? { passwordHash: await hashPassword(input.newPassword) } : {}) };
     await repo.update(current.id, changes);
+    await recordBranchActivity(manager, user.branchId!, user, { kind: 'profile_updated', tone: 'info', title: 'Kullanıcı bilgileri güncellendi', detail: 'Şube hesabının profil bilgileri güncellendi.' });
     if (input.newPassword) await manager.getRepository(SessionEntity).delete({ userId: current.id });
     return { ...current, ...changes };
   });

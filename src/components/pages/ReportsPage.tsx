@@ -10,7 +10,7 @@ import { DonutBreakdownChart } from '../common/SleekCharts';
 import { financialReport, reportRange } from '../../data/financialReports';
 
 export const ReportsPage: React.FC = () => {
-  const { branches, dailyRevenueRecords, expenses, expenseCategories, currentUser, selectedBranchId: currentBranchId, showNotification } = useApp();
+  const { branches, dailyRevenueRecords, expenses, expenseCategories, viewUser: currentUser, selectedBranchId: currentBranchId, showNotification } = useApp();
   const isBranch = currentUser?.role === 'sube';
   const ownBranchId = currentUser?.branchId || currentBranchId;
   const money = (value: number) => value.toLocaleString('tr-TR', { maximumFractionDigits: 2 });

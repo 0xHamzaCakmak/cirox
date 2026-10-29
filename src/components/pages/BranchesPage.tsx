@@ -1,15 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Search,
-  Filter,
-  ArrowUpDown,
-  Store,
   ChevronRight,
   TrendingUp,
   Receipt,
   Users,
-  Grid,
-  List,
   Building2,
   Phone,
   User,
@@ -18,32 +12,17 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Branch } from '../../types';
+import { useMobileViewport } from '../../hooks/useMobileViewport';
 
 export const BranchesPage: React.FC = () => {
-  const { branches, setSelectedBranchId, setActiveTab } = useApp();
+  const { currentUser, branches, setSelectedBranchId, setActiveTab, branchListViewMode: viewMode, branchListSort: sortBy } = useApp();
+  const mobile = useMobileViewport();
+  const mobilePatron = mobile && currentUser?.role === 'merkez';
+  const [search, setSearch] = useState('');
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cityFilter, setCityFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'revenue-desc' | 'revenue-asc' | 'expense-desc' | 'expense-asc' | 'net-desc'>('revenue-desc');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-
-  // Unique cities
-  const cities = useMemo(() => {
-    return Array.from(new Set(branches.map((b) => b.city))).sort();
-  }, [branches]);
-
-  // Filter & Sort logic
   const filteredBranches = useMemo(() => {
-    return branches
-      .filter((b) => {
-        const matchesSearch =
-          b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          b.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          b.district.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          b.managerName.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCity = cityFilter === 'all' || b.city === cityFilter;
-        return matchesSearch && matchesCity;
-      })
+    return [...branches]
+      .filter(branch => !mobilePatron || !search.trim() || [branch.name, branch.code, branch.managerName, branch.city, branch.district].join(' ').toLocaleLowerCase('tr-TR').includes(search.trim().toLocaleLowerCase('tr-TR')))
       .sort((a, b) => {
         switch (sortBy) {
           case 'revenue-desc':
@@ -60,7 +39,7 @@ export const BranchesPage: React.FC = () => {
             return 0;
         }
       });
-  }, [branches, searchQuery, cityFilter, sortBy]);
+  }, [branches, sortBy, search, mobilePatron]);
 
   const handleBranchSelect = (branch: Branch) => {
     setSelectedBranchId(branch.id);
@@ -68,107 +47,17 @@ export const BranchesPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header section with Stats Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <Store className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-zinc-100">
-              Tüm Şubeler ({branches.length} Aktif Şube)
-            </h2>
-          </div>
-          <p className="text-xs text-zinc-400 mt-1">
-            Türkiye genelindeki tüm şubelerin günlük hasılat, gider, personel ve net kar göstergeleri
-          </p>
-        </div>
-
-        {/* View Toggle */}
-        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 p-1 rounded-xl self-start md:self-auto">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-zinc-800 text-zinc-100 font-medium'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-            title="Kart Görünümü"
-          >
-            <Grid className="w-4 h-4" />
-            <span className="hidden sm:inline">Kartlar</span>
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors ${
-              viewMode === 'table'
-                ? 'bg-zinc-800 text-zinc-100 font-medium'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-            title="Tablo Görünümü"
-          >
-            <List className="w-4 h-4" />
-            <span className="hidden sm:inline">Tablo</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Control Bar: Search, City Filter, Sort Options */}
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Şube adı, ilçe, müdür veya şube kodu ara..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition-colors"
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* City Selector */}
-          <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300">
-            <Filter className="w-3 h-3 text-zinc-400" />
-            <select
-              value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-zinc-900">Tüm Şehirler ({cities.length})</option>
-              {cities.map((c) => (
-                <option key={c} value={c} className="bg-zinc-900">
-                  {c} ({branches.filter((b) => b.city === c).length})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Sort Selector */}
-          <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300">
-            <ArrowUpDown className="w-3 h-3 text-zinc-400" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
-            >
-              <option value="revenue-desc" className="bg-zinc-900">Ciroya Göre (En Yüksek)</option>
-              <option value="revenue-asc" className="bg-zinc-900">Ciroya Göre (En Düşük)</option>
-              <option value="expense-desc" className="bg-zinc-900">Gidere Göre (En Yüksek)</option>
-              <option value="expense-asc" className="bg-zinc-900">Gidere Göre (En Düşük)</option>
-              <option value="net-desc" className="bg-zinc-900">Net Kara Göre (En Yüksek)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
+    <div className="branches-page space-y-6 pb-12">
+      {mobilePatron && <label className="patron-branch-search"><span className="sr-only">Şube ara</span><input type="search" aria-label="Şube ara" value={search} onChange={event => setSearch(event.target.value)} placeholder="Şube, kod veya müdür ara" /></label>}
+      {mobilePatron && !filteredBranches.length && <p className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">{branches.length ? 'Aramanıza uygun şube bulunamadı.' : 'Henüz bağlı şube bulunmuyor.'}</p>}
       {/* View: Cards Grid */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredBranches.map((b) => (
             <div
               key={b.id}
+              role="button" tabIndex={0} aria-label={`${b.name} şubesini incele`}
+              onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleBranchSelect(b); } }}
               onClick={() => handleBranchSelect(b)}
               className="bg-zinc-900/90 border border-zinc-800 hover:border-emerald-500/50 rounded-2xl p-4 flex flex-col justify-between transition-all duration-150 cursor-pointer hover:shadow-lg hover:shadow-black/40 group"
             >
@@ -253,7 +142,7 @@ export const BranchesPage: React.FC = () => {
         /* View: Detailed Table */
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse patron-branches-table">
               <thead>
                 <tr className="border-b border-zinc-800 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider bg-zinc-950/40">
                   <th className="py-3 px-4">Kod</th>

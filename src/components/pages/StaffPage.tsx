@@ -26,7 +26,7 @@ import { createClientId } from '../../services/clientId';
 
 export const StaffPage: React.FC = () => {
   const {
-    staffList, activeTab, setActiveTab, currentUser, showNotification,
+    staffList, activeTab, setActiveTab, currentUser: actor, viewUser: currentUser, showNotification,
     branches,
     selectedBranchId,
     addStaff,
@@ -44,7 +44,7 @@ export const StaffPage: React.FC = () => {
   // Modals state
   const isAddModalOpen = activeTab === 'staff_new' || activeTab === 'staff_edit';
   const setIsAddModalOpen = (_open: boolean) => setActiveTab('staff');
-  const readOnly = currentUser?.role !== 'sube';
+  const readOnly = branches.length === 0 || (actor?.role !== 'admin' && currentUser?.role !== 'sube');
   const [editing, setEditing] = useState<Staff | null>(null);
   const [salaryBasis, setSalaryBasis] = useState<'daily' | 'monthly'>('daily');
   const [saving, setSaving] = useState(false);

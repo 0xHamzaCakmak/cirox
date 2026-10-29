@@ -24,7 +24,7 @@ import type { ReceiptAttachment } from '../../types';
 
 export const DailyRevenueEntryPage: React.FC = () => {
   const {
-    currentUser,
+    currentUser: actor, viewUser: currentUser,
     branches,
     selectedBranchId,
     setSelectedBranchId,
@@ -49,7 +49,7 @@ export const DailyRevenueEntryPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const submitting = useRef(false);
-  const readOnly = currentUser?.role !== 'sube';
+  const readOnly = !branch.id || (actor?.role !== 'admin' && currentUser?.role !== 'sube');
 
   // Auto sum
   const total = (Number(creditCard) || 0) + (Number(cash) || 0) + (Number(online) || 0) + (Number(other) || 0);

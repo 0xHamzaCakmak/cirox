@@ -10,6 +10,7 @@ import { asyncRoute, HttpError } from '../http';
 import { readableBranch, writableBranch } from '../services/branch-access';
 import { publicReceipt, revenueRecords, type ReceiptRow } from '../services/revenue';
 import { storeReceipt, readReceipt, removeReceiptObject } from '../services/receipt-storage';
+import { recordBranchActivity } from '../services/notifications';
 
 export const revenueRouter = Router();
 revenueRouter.use(requireAuth);
@@ -48,6 +49,11 @@ revenueRouter.post('/revenue', asyncRoute(async (req, res) => {
     [id, branch.companyId, branch.id, input.date, ...[input.creditCard, input.cash, input.online, input.other].map(value => (Math.round(value * 100) / 100).toFixed(2)), input.notes, user.id]);
     await manager.query('UPDATE receipt_files SET revenue_id=NULL WHERE revenue_id=?', [id]);
     for (const receiptId of input.receiptIds) await manager.query('UPDATE receipt_files SET revenue_id=? WHERE id=?', [id, receiptId]);
+    await recordBranchActivity(manager, branch.id, user, {
+      kind: existing.length ? 'revenue_updated' : 'revenue_created', tone: 'income',
+      title: existing.length ? 'Günlük ciro güncellendi' : 'Günlük ciro kaydedildi',
+      detail: `${input.date} tarihli ciro kaydı.`, amount: totalCents / 100,
+    });
     return id;
   });
   const records = await revenueRecords([branch.id]);
@@ -66,8 +72,11 @@ asyncRoute(async (req, res, next) => {
   const id = randomUUID();
   const name = req.file.originalname.replace(/[\x00-\x1f/\\]/g, '_').slice(0, 255) || 'fis.webp';
   try {
-    await appDataSource.query(`INSERT INTO receipt_files (id,company_id,branch_id,bucket,object_key,file_name,byte_size,uploaded_by) VALUES (?,?,?,?,?,?,?,?)`,
-      [id, branch.companyId, branch.id, stored.bucket, stored.objectKey, name, stored.byteSize, user.id]);
+    await appDataSource.transaction(async manager => {
+      await manager.query(`INSERT INTO receipt_files (id,company_id,branch_id,bucket,object_key,file_name,byte_size,uploaded_by) VALUES (?,?,?,?,?,?,?,?)`,
+        [id, branch.companyId, branch.id, stored.bucket, stored.objectKey, name, stored.byteSize, user.id]);
+      await recordBranchActivity(manager, branch.id, user, { kind: 'receipt_uploaded', tone: 'info', title: 'Fiş / fatura fotoğrafı yüklendi', detail: name });
+    });
   } catch (error) {
     await removeReceiptObject(stored.bucket, stored.objectKey).catch(() => {}); throw error;
   }
