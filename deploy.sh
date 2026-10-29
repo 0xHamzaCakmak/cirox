@@ -17,8 +17,20 @@ privileged() { if [ "$EUID" -eq 0 ]; then "$@"; else sudo -n "$@"; fi; }
 
 cleanup() { if [ -n "$MYSQL_CONFIG_FILE" ]; then rm -f -- "$MYSQL_CONFIG_FILE"; fi; }
 activate_backend() {
-  CIROX_BACKEND_DIR="$1" CIROX_BACKEND_PORT="$BACKEND_PORT" CIROX_RELEASE_SHA="$2" \
-    pm2 startOrReload "$PROJECT_DIR/backend/ecosystem.config.cjs" --only "$PM2_NAME" --env production --update-env
+  local backend_dir="$1" revision="$2" snapshot="$STATE_DIR/pm2-activate.json" action
+  [ -f "$backend_dir/dist/main.js" ] || { die 'Backend giris dosyasi bulunamadi.'; return 1; }
+  (umask 077; pm2 jlist > "$snapshot") || return
+  action="$(node "$PROJECT_DIR/scripts/pm2-release.cjs" "$snapshot" "$PM2_NAME" "$PROJECT_DIR" "$backend_dir")" || return
+  # PM2 can retain the old resolved script/cwd when reloading an ecosystem file.
+  # Recreate only our owned process when the immutable release path changes.
+  if [ "$action" = replace ]; then
+    log 'CIROX eski backend yolundan yeni release yoluna geciriliyor.'
+    pm2 delete "$PM2_NAME" || return
+  fi
+  CIROX_BACKEND_DIR="$backend_dir" CIROX_BACKEND_PORT="$BACKEND_PORT" CIROX_RELEASE_SHA="$revision" \
+    pm2 startOrReload "$PROJECT_DIR/backend/ecosystem.config.cjs" --only "$PM2_NAME" --env production --update-env || return
+  (umask 077; pm2 jlist > "$snapshot") || return
+  node "$PROJECT_DIR/scripts/pm2-release.cjs" "$snapshot" "$PM2_NAME" "$PROJECT_DIR" "$backend_dir" verify
 }
 on_error() {
   local code="$1"

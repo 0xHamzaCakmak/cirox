@@ -93,6 +93,13 @@ değiştirin. Script `NODE_ENV=production`, `HOST=127.0.0.1` ve
 `DB_SYNCHRONIZE=false` kullanır. CIROX'a ait tek PM2 uygulamasına dokunur;
 MasaM QR servisini veya tüm PM2 uygulamalarını yeniden başlatmaz.
 
+Backend release klasörü değiştiğinde yalnızca CIROX'a ait PM2 kaydı yeniden
+oluşturulur. Aynı release için normal reload kullanılır. Gerçek `pm_exec_path`
+ve `pm_cwd` yeni release ile eşleşmeden sağlık kontrolüne ve frontend yayınına
+geçilmez; sadece ortam değişkenindeki commit SHA'nın değişmesi yeterli değildir.
+Bu kontrol, yeni frontend'in eski backend ile çalışıp yeni endpoint'lerde 404
+vermesini önler. Önceki sürüme dönüşte de aynı dosya yolu kontrolü uygulanır.
+
 ## Yedek, saklama ve hata davranışı
 
 DB yedekleri `.deploy/backups/<db>_<zaman>-<pid>.sql.gz` altında, yalnızca

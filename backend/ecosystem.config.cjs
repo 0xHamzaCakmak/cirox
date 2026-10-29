@@ -1,8 +1,10 @@
+const path = require('node:path');
+const backendDirectory = path.resolve(process.env.CIROX_BACKEND_DIR || __dirname);
 module.exports = {
   apps: [{
     name: 'sube-analitik-cirox-api',
-    cwd: process.env.CIROX_BACKEND_DIR || __dirname,
-    script: 'dist/main.js',
+    cwd: backendDirectory,
+    script: path.join(backendDirectory, 'dist', 'main.js'),
     interpreter: process.execPath,
     instances: 1,
     exec_mode: 'fork',
