@@ -51,6 +51,7 @@ export async function bootstrapData(user: UserRow) {
     })),
     user: publicUser(user, companies.find(item => item.id === user.companyId), branches.find(item => item.id === user.branchId)),
     companies: companies.map(company => ({
+      legalName: company.legalName, tradeRegisterNo: company.tradeRegisterNo, taxOffice: company.taxOffice, taxNumber: company.taxNumber, contactEmail: company.contactEmail, phone: company.phone,
       id: company.id, kind: company.kind, name: company.name, code: company.code, sector: company.sector,
       ownerName: company.ownerName, ownerEmail: company.ownerEmail, ownerPhone: company.ownerPhone,
       branchesCount: branches.filter(branch => company.kind === 'center' ? branch.centerCompanyId === company.id : branch.companyId === company.id).length,

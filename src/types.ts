@@ -69,6 +69,7 @@ export interface CollectionOptions { date: string; bankAccountId: string | null;
 export type SubscriptionUpdate = Pick<CompanySubscription, 'planName' | 'price' | 'branchLimit' | 'billingMethod' | 'billingCycle' | 'status' | 'startDate' | 'nextBillingDate'>;
 
 export interface Company {
+  legalName?: string; tradeRegisterNo?: string; contactEmail?: string; phone?: string;
   kind?: 'center' | 'business';
   id: string;
   name: string; // İşletme Unvanı / Şirket Adı

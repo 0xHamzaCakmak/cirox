@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { requireAuth, createSession } from '../auth/session';
 import { hashPassword, verifyPassword } from '../auth/password';
 import { appDataSource } from '../database/data-source';
-import { BranchEntity, SessionEntity, UserEntity, type UserRow } from '../database/entities';
+import { BranchEntity, CompanyEntity, SessionEntity, UserEntity, type UserRow } from '../database/entities';
 import { writableBranch } from '../services/branch-access';
 import { bootstrapData } from '../services/bootstrap';
 import { asyncRoute, HttpError } from '../http';
@@ -18,6 +18,19 @@ const businessSchema = z.object({
 }).strict();
 settingsRouter.post('/business', asyncRoute(async (req, res) => {
   const user = res.locals.user as UserRow;
+  if (user.role === 'merkez' || (user.role === 'admin' && req.body?.companyId !== undefined)) {
+    const { companyId, ...fields } = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    if (user.role !== 'admin' && companyId !== undefined) throw new HttpError(400, 'Başka bir merkez seçemezsiniz.');
+    const parsed = businessSchema.safeParse(user.role === 'admin' ? fields : req.body);
+    if (!parsed.success) throw new HttpError(400, 'İşletme bilgilerini kontrol edin. Vergi numarası boş veya 10–11 rakam, e-posta geçerli olmalıdır.');
+    const targetId = user.role === 'admin' ? z.string().uuid().parse(companyId) : user.companyId;
+    if (!targetId) throw new HttpError(403, 'Merkez hesabı gerekli.');
+    const company = await appDataSource.getRepository(CompanyEntity).findOneBy({ id: targetId, kind: 'center' });
+    if (!company) throw new HttpError(404, 'Merkez bulunamadı.');
+    await appDataSource.getRepository(CompanyEntity).update(company.id, parsed.data);
+    res.json({ bootstrap: await bootstrapData(user) });
+    return;
+  }
   const { branchId, ...businessFields } = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   if (user.role !== 'admin' && branchId !== undefined) throw new HttpError(400, 'Şube hesabı başka bir şubeyi seçemez.');
   const parsed = businessSchema.safeParse(user.role === 'admin' ? businessFields : req.body);
@@ -41,8 +54,8 @@ settingsRouter.post('/profile', rateLimit({ windowMs: 15 * 60_000, limit: 20, le
   const parsed = profileSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError(400, 'Ad, kullanıcı adı ve e-postayı kontrol edin. Yeni şifre en az 8 karakter olmalıdır.');
   const user = res.locals.user as UserRow;
-  if (!user.branchId) throw new HttpError(403, 'Şube hesabı gerekli.');
-  await writableBranch(user, user.branchId);
+  if (user.role === 'sube' && user.branchId) await writableBranch(user, user.branchId);
+  else if (user.role !== 'merkez' || !user.companyId) throw new HttpError(403, 'Kullanıcı hesabı gerekli.');
   const input = parsed.data;
   const updated = await appDataSource.transaction(async manager => {
     const repo = manager.getRepository(UserEntity);
@@ -51,7 +64,7 @@ settingsRouter.post('/profile', rateLimit({ windowMs: 15 * 60_000, limit: 20, le
     const changes = { name: input.name, username: input.username, email: input.email, phone: input.phone,
       ...(input.newPassword ? { passwordHash: await hashPassword(input.newPassword) } : {}) };
     await repo.update(current.id, changes);
-    await recordBranchActivity(manager, user.branchId!, user, { kind: 'profile_updated', tone: 'info', title: 'Kullanıcı bilgileri güncellendi', detail: 'Şube hesabının profil bilgileri güncellendi.' });
+    if (user.branchId) await recordBranchActivity(manager, user.branchId, user, { kind: 'profile_updated', tone: 'info', title: 'Kullanıcı bilgileri güncellendi', detail: 'Şube hesabının profil bilgileri güncellendi.' });
     if (input.newPassword) await manager.getRepository(SessionEntity).delete({ userId: current.id });
     return { ...current, ...changes };
   });

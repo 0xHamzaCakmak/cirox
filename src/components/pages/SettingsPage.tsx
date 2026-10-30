@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings,
   Building,
@@ -11,9 +11,12 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const SettingsPage: React.FC = () => {
-  const { branches, currentUser: actor, viewUser: currentUser, selectedBranchId, saveBranchSettings, saveOwnProfile, showNotification } = useApp();
+  const { branches, companies, currentUser: actor, viewUser: currentUser, selectedBranchId, saveBranchSettings, saveOwnProfile, showNotification } = useApp();
   const isBranch = currentUser?.role === 'sube';
   const branch = branches.find(b => b.id === (currentUser?.branchId || selectedBranchId));
+  const company = companies.find(item => item.id === currentUser?.companyId);
+  const business = isBranch ? branch : company;
+  const canEdit = !!currentUser && (isBranch ? !!branch : currentUser.role === 'merkez' && !!company);
   const [saving, setSaving] = useState(false);
   const submitting = useRef(false);
   const [profileName, setProfileName] = useState(currentUser?.name || '');
@@ -27,12 +30,27 @@ export const SettingsPage: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'business' | 'integration' | 'masamqr' | 'users' | 'security'>('business');
 
   // Business settings state
-  const [companyName, setCompanyName] = useState(branch?.legalName || '');
-  const [tradeRegisterNo, setTradeRegisterNo] = useState(branch?.tradeRegisterNo || '');
-  const [taxOffice, setTaxOffice] = useState(branch?.taxOffice || '');
-  const [taxNumber, setTaxNumber] = useState(branch?.taxNumber || '');
-  const [centralEmail, setCentralEmail] = useState(branch?.contactEmail || '');
-  const [centralPhone, setCentralPhone] = useState(branch?.phone || '');
+  const [companyName, setCompanyName] = useState(business?.legalName || '');
+  const [tradeRegisterNo, setTradeRegisterNo] = useState(business?.tradeRegisterNo || '');
+  const [taxOffice, setTaxOffice] = useState(business?.taxOffice || '');
+  const [taxNumber, setTaxNumber] = useState(business?.taxNumber || '');
+  const [centralEmail, setCentralEmail] = useState(business?.contactEmail || '');
+  const [centralPhone, setCentralPhone] = useState(business?.phone || '');
+
+  useEffect(() => {
+    setCompanyName(business?.legalName ?? (!isBranch ? company?.name : '') ?? '');
+    setTradeRegisterNo(business?.tradeRegisterNo || '');
+    setTaxOffice(business?.taxOffice || '');
+    setTaxNumber(business?.taxNumber || '');
+    setCentralEmail(business?.contactEmail ?? (!isBranch ? company?.ownerEmail : '') ?? '');
+    setCentralPhone(business?.phone ?? (!isBranch ? company?.ownerPhone : '') ?? '');
+  }, [isBranch, business?.id, business?.legalName, business?.tradeRegisterNo, business?.taxOffice, business?.taxNumber, business?.contactEmail, business?.phone, company?.name, company?.ownerEmail, company?.ownerPhone]);
+
+  useEffect(() => {
+    setProfileName(currentUser?.name || ''); setUsername(currentUser?.username || '');
+    setProfileEmail(currentUser?.email || ''); setProfilePhone(currentUser?.phone || '');
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.email, currentUser?.phone]);
 
   // Integration settings state
   const [apiEndpoint, setApiEndpoint] = useState('https://demo.subesiparis.example/api/v1');
@@ -42,7 +60,7 @@ export const SettingsPage: React.FC = () => {
   const [autoReconcile, setAutoReconcile] = useState(true);
 
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault(); if (submitting.current || !isBranch || !branch) return;
+    e.preventDefault(); if (submitting.current || !canEdit) return;
     if (activeSubTab === 'users' && newPassword !== confirmPassword) { showNotification('Yeni şifreler eşleşmiyor.', 'warning'); return; }
     submitting.current = true; setSaving(true);
     try {
@@ -74,7 +92,7 @@ export const SettingsPage: React.FC = () => {
 
         <button
           type="submit" form={activeSubTab === 'users' ? 'settings-profile' : 'settings-business'}
-          disabled={saving || !isBranch || !branch || !['business', 'users'].includes(activeSubTab)}
+          disabled={saving || !canEdit || !['business', 'users'].includes(activeSubTab)}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold text-xs transition-colors shadow-lg shadow-emerald-500/10 self-start sm:self-auto disabled:opacity-50"
         >
           <Save className="w-4 h-4" />
@@ -119,7 +137,7 @@ export const SettingsPage: React.FC = () => {
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>{isBranch ? 'Kullanıcı Bilgilerim' : 'Kullanıcı Yönetimi'}</span>
+          <span>Kullanıcı Bilgilerim</span>
         </button>
 
         <button
@@ -147,7 +165,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">{isBranch ? 'Şube / İşletme Resmi Unvanı' : 'Şirket Resmi Unvanı'}</label>
               <input
                 type="text"
-                value={companyName} maxLength={255} disabled={!isBranch || saving}
+                value={companyName} maxLength={255} disabled={!canEdit || saving}
                 onChange={(e) => setCompanyName(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700"
               />
@@ -157,7 +175,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">Ticaret Sicil No</label>
               <input
                 type="text"
-                value={tradeRegisterNo} maxLength={64} disabled={!isBranch || saving}
+                value={tradeRegisterNo} maxLength={64} disabled={!canEdit || saving}
                 onChange={(e) => setTradeRegisterNo(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 font-mono focus:outline-none focus:border-zinc-700"
               />
@@ -167,7 +185,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">Vergi Dairesi</label>
               <input
                 type="text"
-                value={taxOffice} maxLength={128} disabled={!isBranch || saving}
+                value={taxOffice} maxLength={128} disabled={!canEdit || saving}
                 onChange={(e) => setTaxOffice(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700"
               />
@@ -177,7 +195,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">Vergi Kimlik Numarası (VKN)</label>
               <input
                 type="text"
-                value={taxNumber} maxLength={11} disabled={!isBranch || saving}
+                value={taxNumber} maxLength={11} disabled={!canEdit || saving}
                 onChange={(e) => setTaxNumber(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 font-mono focus:outline-none focus:border-zinc-700"
               />
@@ -187,7 +205,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">{isBranch ? 'Şube İletişim E-Posta' : 'Merkez İletişim E-Posta'}</label>
               <input
                 type="email"
-                value={centralEmail} maxLength={128} disabled={!isBranch || saving}
+                value={centralEmail} maxLength={128} disabled={!canEdit || saving}
                 onChange={(e) => setCentralEmail(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700"
               />
@@ -197,7 +215,7 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-zinc-400 mb-1 font-medium">{isBranch ? 'Şube İletişim / Telefon' : 'Merkez Çağrı / Telefon'}</label>
               <input
                 type="text"
-                value={centralPhone} maxLength={32} disabled={!isBranch || saving}
+                value={centralPhone} maxLength={32} disabled={!canEdit || saving}
                 onChange={(e) => setCentralPhone(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 font-mono focus:outline-none focus:border-zinc-700"
               />
@@ -303,90 +321,12 @@ export const SettingsPage: React.FC = () => {
       </div>}
 
       {/* Tab Content: Users Management */}
-      {activeSubTab === 'users' && (isBranch ? (
-        <BranchProfileForm adminEditing={actor?.role === 'admin'} name={profileName} setName={setProfileName} username={username} setUsername={setUsername} email={profileEmail} setEmail={setProfileEmail} phone={profilePhone} setPhone={setProfilePhone} currentPassword={currentPassword} setCurrentPassword={setCurrentPassword} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} branchName={branch?.name || ''} saving={saving} onSubmit={handleSave} />
-      ) : (
-        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 space-y-4 text-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-            <div>
-              <h3 className="text-sm font-bold text-zinc-100">
-                Kullanıcı ve Rol Yönetimi
-              </h3>
-              <p className="text-zinc-400 text-[11px]">
-                Merkez yöneticileri ve 40+ şube yöneticisinin erişim hesapları
-              </p>
-            </div>
-            <button
-              onClick={() => showNotification('Yeni kullanıcı davet ekranı', 'info')}
-              className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-zinc-950 font-bold text-xs"
-            >
-              Yeni Kullanıcı Davet Et
-            </button>
-          </div>
+      {activeSubTab === 'users' && (
+        <BranchProfileForm isBranch={isBranch} adminEditing={actor?.role === 'admin'} name={profileName} setName={setProfileName} username={username} setUsername={setUsername} email={profileEmail} setEmail={setProfileEmail} phone={profilePhone} setPhone={setProfilePhone} currentPassword={currentPassword} setCurrentPassword={setCurrentPassword} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} branchName={(isBranch ? branch?.name : company?.name) || ''} saving={saving || !canEdit} onSubmit={handleSave} />
+      )}
 
-          <div className="space-y-2">
-            {/* User 1: Merkez */}
-            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-                  M
-                </div>
-                <div>
-                  <div className="font-bold text-zinc-200">Merkez Finans Direktörü</div>
-                  <div className="text-[11px] text-zinc-500">merkez@anadolulezzetleri.com</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Merkez Yöneticisi (Full)
-                </span>
-                <span className="text-[11px] text-zinc-500">Aktif</span>
-              </div>
-            </div>
-
-            {/* User 2: Şube */}
-            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
-                  K
-                </div>
-                <div>
-                  <div className="font-bold text-zinc-200">Kadıköy Şube Müdürü</div>
-                  <div className="text-[11px] text-zinc-500">sube.kadikoy@anadolulezzetleri.com</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  Şube Kullanıcısı (Kısıtlı)
-                </span>
-                <span className="text-[11px] text-zinc-500">Aktif</span>
-              </div>
-            </div>
-
-            {/* User 3: Şube Beşiktaş */}
-            <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold">
-                  B
-                </div>
-                <div>
-                  <div className="font-bold text-zinc-200">Beşiktaş Şube Müdürü</div>
-                  <div className="text-[11px] text-zinc-500">sube.besiktas@anadolulezzetleri.com</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  Şube Kullanıcısı
-                </span>
-                <span className="text-[11px] text-zinc-500">Aktif</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {isBranch && ['business', 'users'].includes(activeSubTab) && <div className="md:hidden sticky bottom-0 z-20 bg-zinc-950 border-t border-zinc-800 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-        <button type="submit" form={activeSubTab === 'users' ? 'settings-profile' : 'settings-business'} disabled={saving || !branch} className="w-full min-h-12 rounded-xl bg-emerald-500 text-zinc-950 font-bold text-xs disabled:opacity-50">{saving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}</button>
+      {canEdit && ['business', 'users'].includes(activeSubTab) && <div className="md:hidden sticky bottom-0 z-20 bg-zinc-950 border-t border-zinc-800 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+        <button type="submit" form={activeSubTab === 'users' ? 'settings-profile' : 'settings-business'} disabled={saving || !canEdit} className="w-full min-h-12 rounded-xl bg-emerald-500 text-zinc-950 font-bold text-xs disabled:opacity-50">{saving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}</button>
       </div>}
 
       {/* Tab Content: Security */}
@@ -424,6 +364,7 @@ export const SettingsPage: React.FC = () => {
 };
 
 interface BranchProfileFormProps {
+  isBranch: boolean;
   adminEditing?: boolean;
   name: string; username: string; email: string; phone: string; currentPassword: string; newPassword: string; confirmPassword: string;
   setName: (value: string) => void; setUsername: (value: string) => void; setEmail: (value: string) => void; setPhone: (value: string) => void;
@@ -441,7 +382,7 @@ function BranchProfileForm(props: BranchProfileFormProps) {
     { id: 'profile-confirm', label: 'Yeni Şifre Tekrar', value: props.confirmPassword, update: props.setConfirmPassword, type: 'password', autoComplete: 'new-password', maxLength: 256, minLength: 8, required: !!props.newPassword },
   ].filter(field => !props.adminEditing || field.id !== 'profile-current');
   return <form id="settings-profile" onSubmit={props.onSubmit} className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 space-y-5 text-xs">
-    <div className="flex flex-wrap gap-3 items-center justify-between pb-3 border-b border-zinc-800"><div><h3 className="text-sm font-bold text-zinc-100">Şube Kullanıcı Bilgileri</h3><p className="text-zinc-400 text-[11px] mt-1">{props.branchName} · {props.adminEditing ? 'Seçili müşteri hesabı' : 'Kendi giriş hesabınız'}</p></div><span className="px-3 py-1 rounded-full text-[10px] text-sky-400 bg-sky-500/10 border border-sky-500/20">Şube Kullanıcısı</span></div>
+    <div className="flex flex-wrap gap-3 items-center justify-between pb-3 border-b border-zinc-800"><div><h3 className="text-sm font-bold text-zinc-100">{props.isBranch ? 'Şube Kullanıcı Bilgileri' : 'Merkez Kullanıcı Bilgileri'}</h3><p className="text-zinc-400 text-[11px] mt-1">{props.branchName} · {props.adminEditing ? 'Seçili müşteri hesabı' : 'Kendi giriş hesabınız'}</p></div><span className="px-3 py-1 rounded-full text-[10px] text-sky-400 bg-sky-500/10 border border-sky-500/20">{props.isBranch ? 'Şube Kullanıcısı' : 'Merkez / Patron'}</span></div>
     {[fields.slice(0, 4), fields.slice(4)].map((group, index) => <div key={index} className={index === 0 ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4' : 'grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-zinc-800'}>
       {group.map(field => <div key={field.id} className="min-w-0 flex flex-col"><label className="block text-zinc-400 mb-1 font-medium" htmlFor={field.id}>{field.label}</label><input id={field.id} type={field.type} autoComplete={field.autoComplete} required={field.required} minLength={field.minLength} maxLength={field.maxLength} pattern={field.pattern} value={field.value} disabled={props.saving} onChange={event => field.update(event.target.value)} className="mt-auto w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-sky-500" /></div>)}
     </div>)}

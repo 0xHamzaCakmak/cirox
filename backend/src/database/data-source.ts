@@ -14,6 +14,8 @@ import { BranchActivityNotifications1793145608000 } from './migrations/179314560
 import { AdminBankCollections1793145609000 } from './migrations/1793145609000-AdminBankCollections';
 import { CashRevenueEntries1793145610000 } from './migrations/1793145610000-CashRevenueEntries';
 
+import { CenterSettings1793145611000 } from './migrations/1793145611000-CenterSettings';
+
 export const appDataSource = new DataSource({
   type: 'mysql',
   host: env.db.host,
@@ -27,7 +29,7 @@ export const appDataSource = new DataSource({
   migrationsRun: false,
   logging: env.db.logging,
   entities: [CompanyEntity, BranchEntity, UserEntity, SessionEntity],
-  migrations: [IdentityFoundation1793145600000, OptionalMonitoringCenter1793145601000, Usernames1793145602000, RevenueReceipts1793145603000, Expenses1793145604000, BranchExpenseCategories1793145605000, StaffCompensation1793145606000, BranchSettings1793145607000, BranchActivityNotifications1793145608000, AdminBankCollections1793145609000, CashRevenueEntries1793145610000],
+  migrations: [IdentityFoundation1793145600000, OptionalMonitoringCenter1793145601000, Usernames1793145602000, RevenueReceipts1793145603000, Expenses1793145604000, BranchExpenseCategories1793145605000, StaffCompensation1793145606000, BranchSettings1793145607000, BranchActivityNotifications1793145608000, AdminBankCollections1793145609000, CashRevenueEntries1793145610000, CenterSettings1793145611000],
   migrationsTableName: 'schema_migrations',
   migrationsTransactionMode: 'none',
   extra: { connectionLimit: 10, connectTimeout: 10000 },

@@ -137,6 +137,7 @@ adminRouter.post('/centers', asyncRoute(async (req, res) => {
     next.setUTCFullYear(next.getUTCFullYear() + 1);
     const company = await manager.save(CompanyEntity, {
       id: randomUUID(), kind: 'center', name: input.name,
+      legalName: input.name, contactEmail: input.ownerEmail, phone: input.ownerPhone,
       code: 'C_' + randomUUID().replaceAll('-', '').slice(0, 28),
       sector: 'Restoran & Yeme-İçme', ownerName: input.ownerName,
       ownerEmail: input.ownerEmail, ownerPhone: input.ownerPhone,

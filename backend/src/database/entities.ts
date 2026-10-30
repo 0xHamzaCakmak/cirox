@@ -1,6 +1,7 @@
 import { EntitySchema } from 'typeorm';
 
 export interface CompanyRow {
+  legalName: string; tradeRegisterNo: string; taxOffice: string; taxNumber: string; contactEmail: string; phone: string;
   kind: 'center' | 'business';
   id: string; name: string; code: string; sector: string;
   ownerName: string; ownerEmail: string; ownerPhone: string;
@@ -32,6 +33,12 @@ const createdAt = { name: 'created_at', type: 'datetime', precision: 3, createDa
 
 export const CompanyEntity = new EntitySchema<CompanyRow>({
   name: 'Company', tableName: 'companies', columns: {
+    legalName: { name: 'legal_name', type: String, length: 255, default: '' },
+    tradeRegisterNo: { name: 'trade_register_no', type: String, length: 64, default: '' },
+    taxOffice: { name: 'tax_office', type: String, length: 128, default: '' },
+    taxNumber: { name: 'tax_number', type: String, length: 11, default: '' },
+    contactEmail: { name: 'contact_email', type: String, length: 128, default: '' },
+    phone: { type: String, length: 32, default: '' },
     kind: { type: 'enum', enum: ['center', 'business'], default: 'center' },
     id, name: { type: String, length: 255 }, code: { type: String, length: 32, unique: true },
     sector: { type: String, length: 128 }, ownerName: { name: 'owner_name', type: String, length: 128 },

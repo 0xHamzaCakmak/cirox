@@ -1034,12 +1034,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveBranchSettings = async (data: BranchSettings) => {
     if (sessionMode.current === 'live') {
       const epoch = authEpoch.current;
-      const result = await api<{ bootstrap: BootstrapData }>('/settings/business', { ...data, ...(currentUser?.role === 'admin' ? { branchId: selectedBranchId } : {}) });
-      if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('Şube bilgileri kaydedildi.', 'success'); }
+      const result = await api<{ bootstrap: BootstrapData }>('/settings/business', { ...data, ...(currentUser?.role === 'admin' ? (viewUser?.role === 'merkez' ? { companyId: viewUser.companyId } : { branchId: selectedBranchId }) : {}) });
+      if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('İşletme bilgileri kaydedildi.', 'success'); }
       return;
     }
-    setAllBranches(prev => prev.map(branch => branch.id === currentUser?.branchId ? { ...branch, ...data } : branch));
-    showNotification('Şube bilgileri demo oturumunda güncellendi.', 'info');
+    if (viewUser?.role === 'merkez') setCompanies(prev => prev.map(company => company.id === viewUser.companyId ? { ...company, ...data } : company));
+    else setAllBranches(prev => prev.map(branch => branch.id === viewUser?.branchId ? { ...branch, ...data } : branch));
+    showNotification('İşletme bilgileri demo oturumunda güncellendi.', 'info');
   };
   const saveOwnProfile = async (data: OwnProfileUpdate) => {
     if (sessionMode.current === 'live') {
