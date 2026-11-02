@@ -27,6 +27,10 @@ function visibility(user: UserRow, scope: NotificationScope) {
     // Removing or moving a branch revokes the old center's visibility immediately.
     conditions.push('b.center_company_id=? AND e.center_company_id=?'); parameters.push(centerId, centerId);
   } else if (user.role === 'merkez') conditions.push('1=0');
+  if (user.role === 'merkez' && user.centerBranchAccess !== 'all') {
+    conditions.push('EXISTS (SELECT 1 FROM center_user_branches g WHERE g.user_id=? AND g.branch_id=b.id)');
+    parameters.push(user.id);
+  }
   if (user.role === 'sube') {
     conditions.push('b.id=? AND b.company_id=?'); parameters.push(user.branchId || '', user.companyId || '');
   }

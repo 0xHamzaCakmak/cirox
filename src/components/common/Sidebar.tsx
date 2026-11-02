@@ -125,6 +125,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     },
   ];
 
+  const navigationItems = isMerkez
+    ? [coreNavItems[1], coreNavItems[0], ...coreNavItems.slice(2)]
+    : coreNavItems;
+
   const handleNavClick = (tab: PageTab) => {
     setActiveTab(tab);
     if (onCloseMobile) onCloseMobile();
@@ -174,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               ? (isAdminCustomerView ? viewUser?.branchName || activeCompany.name : 'Yönetim Paneli')
               : isMerkez
               ? (currentUser?.name || activeCompany.ownerName).toLocaleUpperCase('tr-TR')
-              : currentUser?.branchName}
+              : selectedBranch.name || currentUser?.branchName}
           </p>
           {isPatron && <p className="mt-1 text-[11px] font-semibold text-zinc-400">ŞUBE : {branches.length}</p>}
 
@@ -247,7 +251,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         {!isPatron && <div className="text-[10px] uppercase font-semibold text-zinc-500 px-3 py-1 tracking-wider">
           {isMerkez ? `${activeCompany.name} (${branches.length} Şube)` : 'Şube İşlemleri'}
         </div>}
-        {coreNavItems
+        {navigationItems
           .filter((item) => item.visibleFor.includes(viewUser?.role || 'merkez') && resolvePageForRole(currentUser?.role, item.id) === item.id)
           .map((item) => {
             const Icon = item.icon;

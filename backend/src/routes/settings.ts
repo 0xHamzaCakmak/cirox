@@ -13,9 +13,15 @@ import { recordBranchActivity } from '../services/notifications';
 export const settingsRouter = Router();
 settingsRouter.use(requireAuth);
 const businessSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
   legalName: z.string().trim().max(255), tradeRegisterNo: z.string().trim().max(64), taxOffice: z.string().trim().max(128),
   taxNumber: z.string().trim().regex(/^(?:\d{10,11})?$/), contactEmail: z.union([z.literal(''), z.email().max(128)]), phone: z.string().trim().max(32),
 }).strict();
+const branchBusinessSchema = businessSchema.extend({
+  name: z.string().trim().min(1).max(128).optional(),
+  city: z.string().trim().max(64).optional(),
+  district: z.string().trim().max(64).optional(),
+});
 settingsRouter.post('/business', asyncRoute(async (req, res) => {
   const user = res.locals.user as UserRow;
   if (user.role === 'merkez' || (user.role === 'admin' && req.body?.companyId !== undefined)) {
@@ -33,7 +39,7 @@ settingsRouter.post('/business', asyncRoute(async (req, res) => {
   }
   const { branchId, ...businessFields } = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   if (user.role !== 'admin' && branchId !== undefined) throw new HttpError(400, 'Şube hesabı başka bir şubeyi seçemez.');
-  const parsed = businessSchema.safeParse(user.role === 'admin' ? businessFields : req.body);
+  const parsed = branchBusinessSchema.safeParse(user.role === 'admin' ? businessFields : req.body);
   if (!parsed.success) throw new HttpError(400, 'Şube bilgilerini kontrol edin. Vergi numarası boş veya 10–11 rakam, e-posta geçerli olmalıdır.');
   const targetBranchId = user.role === 'admin' ? z.string().uuid().parse(branchId) : user.branchId;
   if (!targetBranchId) throw new HttpError(403, 'Şube hesabı gerekli.');

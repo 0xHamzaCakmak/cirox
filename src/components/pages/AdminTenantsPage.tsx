@@ -649,7 +649,7 @@ export const AdminTenantsPage: React.FC<AdminTenantsPageProps> = ({ defaultTab =
                           <button
                             onClick={() => openEditPage(comp)}
                             className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
-                            title="Abonelik Şartlarını Düzenle"
+                            title="Hesap, İşletme ve Lisans Bilgilerini Düzenle"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>

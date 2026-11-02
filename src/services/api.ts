@@ -12,6 +12,15 @@ export interface CenterAccountInput {
   billingMethod: 'credit_card' | 'bank_transfer' | 'manual'; notes: string;
 }
 export interface CenterAccountResult { companyId: string; userId: string; bootstrap: BootstrapData }
+export interface CenterUser {
+  id: string; name: string; username: string; email: string; phone: string; active: boolean;
+  access: 'all' | 'selected'; branchIds: string[];
+}
+export interface CenterUsersData {
+  center: { id: string; name: string };
+  users: CenterUser[];
+  branches: { id: string; name: string; city: string; district: string }[];
+}
 export interface AdminBusinessAccount {
   id: string; name: string; kind: 'center' | 'business'; status: Company['subscription']['status'];
   ownerName: string; ownerEmail: string; ownerPhone: string; createdAt: string; branchLimit: number;

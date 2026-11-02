@@ -1,12 +1,26 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, Calendar, Save, Shield } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import type { Company, SubscriptionUpdate } from '../../types';
+import type { AdminAccountDetails, Company, SubscriptionUpdate } from '../../types';
 import { subscriptionRenewalDate } from '../../data/subscriptionDates';
+import { AdminAccountFields } from './AdminAccountFields';
 
 const field = 'w-full min-w-0 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-base sm:text-sm text-zinc-100 focus:outline-none focus:border-indigo-400';
 export const AdminSubscriptionEditPage: React.FC<{ company: Company; onBack: () => void }> = ({ company, onBack }) => {
-  const { updateCompanySubscription } = useApp();
+  const { updateCompanySubscription, adminBranches, adminUsers, companies } = useApp();
+  const [account, setAccount] = useState<AdminAccountDetails>(() => ({
+    name: company.name, sector: company.sector, ownerName: company.ownerName, ownerEmail: company.ownerEmail, ownerPhone: company.ownerPhone,
+    notes: company.notes || '', legalName: company.legalName || '', tradeRegisterNo: company.tradeRegisterNo || '',
+    taxOffice: company.taxOffice || '', taxNumber: company.taxNumber || '', contactEmail: company.contactEmail || '', phone: company.phone || '',
+    branches: adminBranches.filter(branch => branch.companyId === company.id).map(branch => ({
+      id: branch.id, name: branch.name, city: branch.city, district: branch.district, managerName: branch.managerName,
+      status: branch.status, centerCompanyId: branch.centerCompanyId || null, phone: branch.phone,
+      legalName: branch.legalName || '', tradeRegisterNo: branch.tradeRegisterNo || '', taxOffice: branch.taxOffice || '', taxNumber: branch.taxNumber || '', contactEmail: branch.contactEmail || '',
+    })),
+    users: adminUsers.filter(user => user.companyId === company.id && user.role !== 'admin').map(user => ({
+      id: user.id, name: user.name, username: user.username || '', email: user.email, phone: user.phone || '', title: user.title, active: user.active ?? true,
+    })),
+  }));
   const [form, setForm] = useState<SubscriptionUpdate>(() => ({
     planName: company.subscription.planName, price: company.subscription.price, branchLimit: company.subscription.branchLimit,
     billingCycle: company.subscription.billingCycle, billingMethod: company.subscription.billingMethod,
@@ -23,18 +37,20 @@ export const AdminSubscriptionEditPage: React.FC<{ company: Company; onBack: () 
     if (busy.current) return;
     if (!form.startDate || !form.nextBillingDate || form.nextBillingDate <= form.startDate) { setError('Bitiş / yenileme tarihi başlangıç tarihinden sonra olmalıdır.'); return; }
     busy.current = true; setSaving(true); setError('');
-    try { await updateCompanySubscription(company.id, form); onBack(); }
+    try { await updateCompanySubscription(company.id, { ...form, account: { ...account, users: account.users.map(({ newPassword, ...user }) => ({ ...user, ...(newPassword ? { newPassword } : {}) })) } }); onBack(); }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Lisans kaydedilemedi.'); }
     finally { busy.current = false; setSaving(false); }
   };
   return <section className="mx-auto w-full max-w-5xl space-y-5" aria-labelledby="subscription-edit-title">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 id="subscription-edit-title" className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Shield className="h-5 w-5 text-indigo-400" />Abonelik & Lisans Düzenle</h2><p className="mt-1 text-sm text-zinc-400">{company.name}</p></div>
+      <div><h2 id="subscription-edit-title" className="flex items-center gap-2 text-lg font-bold text-zinc-100"><Shield className="h-5 w-5 text-indigo-400" />Hesap, İşletme & Lisans Düzenle</h2><p className="mt-1 text-sm text-zinc-400">{company.name}</p></div>
       <button type="button" disabled={saving} onClick={onBack} className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-3 py-2 text-xs text-zinc-300 disabled:opacity-50"><ArrowLeft className="h-4 w-4 text-emerald-400" strokeWidth={3} />Aboneler ve Lisanslara Dön</button>
     </div>
     <form onSubmit={submit} className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6">
       {error && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p>}
+      <AdminAccountFields account={account} onChange={setAccount} centers={companies.filter(item => item.kind === 'center')} saving={saving} />
       <fieldset disabled={saving} className="grid grid-cols-1 gap-4 sm:grid-cols-2 disabled:opacity-60">
+        <legend className="mb-4 border-t border-zinc-800 pt-5 text-sm font-semibold text-zinc-100">Abonelik & Lisans Bilgileri</legend>
         <label className="space-y-1.5 text-xs text-zinc-300 sm:col-span-2"><span className="block">Paket Adı</span><input required maxLength={64} className={field} value={form.planName} onChange={event => update('planName', event.target.value)} /></label>
         <label className="space-y-1.5 text-xs text-zinc-300"><span className="block">Lisans Bedeli (₺)</span><input required type="number" min={0} max={9999999999.99} step="0.01" className={field} value={form.price} onChange={event => update('price', Number(event.target.value))} /></label>
         <label className="space-y-1.5 text-xs text-zinc-300"><span className="block">Şube / Masa Limiti</span><input required type="number" min={1} max={10000} step={1} className={field} value={form.branchLimit} onChange={event => update('branchLimit', Number(event.target.value))} /></label>
@@ -47,7 +63,7 @@ export const AdminSubscriptionEditPage: React.FC<{ company: Company; onBack: () 
       </fieldset>
       <div className="flex flex-wrap justify-end gap-3 border-t border-zinc-800 pt-4">
         <button type="button" disabled={saving} onClick={onBack} className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm text-zinc-300 disabled:opacity-50">Vazgeç</button>
-        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Kaydediliyor…' : 'Lisansı Kaydet'}</button>
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Kaydediliyor…' : 'Tüm Bilgileri Kaydet'}</button>
       </div>
     </form>
   </section>;

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, KeyRound, RefreshCw, Search, Store } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api, type AdminBusinessAccount } from '../../services/api';
+import { AdminCenterUsersPage } from './AdminCenterUsersPage';
 
 const inputClass = 'w-full min-w-0 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-400';
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 disabled:opacity-50';
@@ -11,6 +12,7 @@ const formatDate = (value: string) => new Date(value).toLocaleDateString('tr-TR'
 export const AdminBusinessesPage: React.FC = () => {
   const { currentUser } = useApp();
   const [accounts, setAccounts] = useState<AdminBusinessAccount[]>([]);
+  const [centerUsers, setCenterUsers] = useState<{ centerId: string; userId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reload, setReload] = useState(0);
@@ -66,6 +68,7 @@ export const AdminBusinessesPage: React.FC = () => {
   };
 
   if (currentUser?.role !== 'admin') return null;
+  if (centerUsers) return <AdminCenterUsersPage key={centerUsers.centerId} centerId={centerUsers.centerId} initialUserId={centerUsers.userId} onBack={() => { setCenterUsers(null); setReload(value => value + 1); }} />;
   return <section className="space-y-4" aria-labelledby="admin-businesses-title">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -103,6 +106,7 @@ export const AdminBusinessesPage: React.FC = () => {
             </div>
             <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${account.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-800 text-zinc-400'}`}>{statusLabels[account.status]}</span>
           </div>
+          {account.kind === 'center' && <button type="button" className={buttonClass} onClick={() => setCenterUsers({ centerId: account.id })}>Kullanıcılar ve Şube Yetkileri</button>}
           {account.users.length === 0 ? <div className="space-y-2 rounded-xl bg-zinc-950 p-4 text-xs text-zinc-400">
             <p>Bu hesaba ait giriş kullanıcısı bulunmuyor.</p><p>Yetkili: {account.ownerName || '—'} · E-posta: {account.ownerEmail || '—'} · Telefon: {account.ownerPhone || '—'}</p>
           </div> : account.users.map(user => <div key={user.id} className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
@@ -110,6 +114,7 @@ export const AdminBusinessesPage: React.FC = () => {
               <div className="min-w-0"><p className="break-words text-sm font-semibold text-zinc-200">{user.name}</p>
                 <p className="mt-1 text-xs text-zinc-500">{user.role === 'merkez' ? 'Patron / Merkez Kullanıcısı' : 'Şube Kullanıcısı'} · {user.active ? 'Aktif' : 'Pasif'}</p>
               </div>
+              {account.kind === 'center' && <button type="button" className={buttonClass} onClick={() => setCenterUsers({ centerId: account.id, userId: user.id })}>Şube Yetkilerini Düzenle</button>}
               <button type="button" className={buttonClass} disabled={saving} onClick={() => startReset(user.id)} aria-expanded={resetUserId === user.id}>
                 <KeyRound className="h-4 w-4" />Şifre Sıfırla
               </button>

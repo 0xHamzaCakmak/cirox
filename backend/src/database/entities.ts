@@ -20,6 +20,7 @@ export interface BranchRow {
   status: 'active' | 'review' | 'passive'; royaltyRate: string; createdAt: Date;
 }
 export interface UserRow {
+  centerBranchAccess: 'all' | 'selected';
   username: string | null;
   id: string; companyId: string | null; branchId: string | null;
   name: string; email: string; passwordHash: string;
@@ -71,6 +72,7 @@ export const BranchEntity = new EntitySchema<BranchRow>({
 });
 export const UserEntity = new EntitySchema<UserRow>({
   name: 'User', tableName: 'users', columns: {
+    centerBranchAccess: { name: 'center_branch_access', type: 'enum', enum: ['all', 'selected'], default: 'selected' },
     username: { type: String, length: 32, nullable: true, unique: true },
     id, companyId: { name: 'company_id', type: String, length: 64, nullable: true },
     branchId: { name: 'branch_id', type: String, length: 64, nullable: true },

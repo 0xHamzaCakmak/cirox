@@ -8,7 +8,7 @@ import { adminFinanceData } from './admin-finance';
 export function publicUser(user: UserRow, company?: CompanyRow, branch?: BranchRow) {
   return {
     id: user.id, name: user.name, email: user.email, username: user.username, role: user.role,
-    title: user.title, phone: user.phone,
+    title: user.title, phone: user.phone, active: user.active,
     companyId: user.companyId ?? undefined, companyName: company?.name,
     branchId: user.branchId ?? undefined, branchName: branch?.name,
     centerCompanyId: branch?.centerCompanyId ?? null,
@@ -20,11 +20,16 @@ export async function bootstrapData(user: UserRow) {
   const companies = await appDataSource.getRepository(CompanyEntity).find({
     where: user.role === 'admin' ? {} : { id: user.companyId! }, order: { createdAt: 'DESC' },
   });
-  const branches = await appDataSource.getRepository(BranchEntity).find({
+  let branches = await appDataSource.getRepository(BranchEntity).find({
     where: user.role === 'admin' ? {} : user.role === 'sube'
       ? { id: user.branchId!, companyId: user.companyId! } : { centerCompanyId: user.companyId! },
     order: { createdAt: 'DESC' },
   });
+  if (user.role === 'merkez' && user.centerBranchAccess !== 'all') {
+    const grants: { branch_id: string }[] = await appDataSource.query('SELECT branch_id FROM center_user_branches WHERE user_id=?', [user.id]);
+    const permitted = new Set(grants.map(grant => grant.branch_id));
+    branches = branches.filter(branch => permitted.has(branch.id));
+  }
   const branchUsers = branches.length ? await appDataSource.getRepository(UserEntity).find({
     where: { branchId: In(branches.map(branch => branch.id)), role: 'sube' },
   }) : [];

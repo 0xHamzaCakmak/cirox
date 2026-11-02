@@ -45,6 +45,7 @@ interface AppContextType {
   returnToAdmin: () => void;
   isAdminCustomerView: boolean;
   adminBranches: Branch[];
+  adminUsers: User[];
   createCenterAccount: (data: CenterAccountInput) => Promise<string>;
   updateBranchCenter: (branchId: string, centerCompanyId: string | null) => Promise<void>;
   saveBranchSettings: (data: BranchSettings) => Promise<void>;
@@ -697,7 +698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const result = await api<{ bootstrap: BootstrapData }>('/admin/companies/' + encodeURIComponent(companyId) + '/subscription', data);
     if (epoch !== authEpoch.current || sessionMode.current !== 'live') return;
     applyBootstrap(result.bootstrap, true);
-    showNotification('Abonelik ve lisans bilgileri kaydedildi.', 'success');
+    showNotification('Hesap ve lisans bilgileri kaydedildi.', 'success');
   };
 
   const addBankAccount = async (input: BankAccountInput) => {
@@ -1035,7 +1036,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sessionMode.current === 'live') {
       const epoch = authEpoch.current;
       const result = await api<{ bootstrap: BootstrapData }>('/settings/business', { ...data, ...(currentUser?.role === 'admin' ? (viewUser?.role === 'merkez' ? { companyId: viewUser.companyId } : { branchId: selectedBranchId }) : {}) });
-      if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCurrentUser(result.bootstrap.user); showNotification('İşletme bilgileri kaydedildi.', 'success'); }
+      if (epoch === authEpoch.current) { applyOperationalData(result.bootstrap); setCompanies(result.bootstrap.companies); setCurrentUser(result.bootstrap.user); showNotification('İşletme bilgileri kaydedildi.', 'success'); }
       return;
     }
     if (viewUser?.role === 'merkez') setCompanies(prev => prev.map(company => company.id === viewUser.companyId ? { ...company, ...data } : company));
@@ -1087,6 +1088,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginWithCredentials,
         createEstablishmentAndStart,
         adminBranches: currentUser?.role === 'admin' ? allBranches : [],
+        adminUsers: currentUser?.role === 'admin' ? managedUsers : [],
         createCenterAccount,
         updateBranchCenter,
         setActiveCompanyId,

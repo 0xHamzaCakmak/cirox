@@ -9,9 +9,11 @@ import { requireAdmin, requireAuth } from '../auth/session';
 import { asyncRoute, HttpError } from '../http';
 import { bootstrapData } from '../services/bootstrap';
 import { recordBranchActivity } from '../services/notifications';
+import { centerUsersRouter } from './center-users';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
+adminRouter.use(centerUsersRouter);
 const text = (max: number) => z.string().trim().min(1).max(max);
 const username = z.string().trim().toLowerCase().min(3).max(32).regex(/^[a-z0-9_.-]+$/);
 const schema = z.object({
@@ -55,7 +57,25 @@ const licenseDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   const date = new Date(value + 'T12:00:00Z');
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= '1970-01-01' && value <= '2100-12-31';
 });
+const businessDetailsSchema = z.object({
+  legalName: z.string().trim().max(255), tradeRegisterNo: z.string().trim().max(64),
+  taxOffice: z.string().trim().max(128), taxNumber: z.string().trim().regex(/^(?:\d{10,11})?$/),
+  contactEmail: z.union([z.literal(''), z.string().trim().toLowerCase().email().max(128)]), phone: z.string().trim().max(32),
+});
+const accountDetailsSchema = businessDetailsSchema.extend({
+  name: text(255), sector: z.string().trim().max(128), ownerName: text(128),
+  ownerEmail: z.string().trim().toLowerCase().email().max(128), ownerPhone: z.string().trim().max(32), notes: z.string().max(5000),
+  branches: z.array(businessDetailsSchema.extend({
+    id: z.string().uuid(), name: text(128), city: z.string().trim().max(64), district: z.string().trim().max(64),
+    managerName: z.string().trim().max(128), status: z.enum(['active', 'review', 'passive']), centerCompanyId: z.string().uuid().nullable(),
+  }).strict()).max(10000).refine(rows => new Set(rows.map(row => row.id)).size === rows.length),
+  users: z.array(z.object({
+    id: z.string().uuid(), name: text(128), username, email: z.string().trim().toLowerCase().email().max(128),
+    phone: z.string().trim().max(32), title: z.string().trim().max(128), active: z.boolean(), newPassword: z.string().min(8).max(256).optional(),
+  }).strict()).max(10000).refine(rows => new Set(rows.map(row => row.id)).size === rows.length),
+}).strict();
 const subscriptionSchema = z.object({
+  account: accountDetailsSchema.optional(),
   planName: text(64), price: z.number().finite().min(0).max(9999999999.99).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.0001),
   branchLimit: z.number().int().min(1).max(10000), billingMethod: z.enum(['bank_transfer', 'credit_card', 'manual']),
   billingCycle: z.enum(['monthly', 'yearly']), status: z.enum(['active', 'trial', 'passive', 'past_due']),
@@ -66,9 +86,41 @@ adminRouter.post('/companies/:companyId/subscription', asyncRoute(async (req, re
   const parsed = subscriptionSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError(400, 'Lisans alanlarını kontrol edin. Bedel negatif olamaz, limit 1–10000 arasında olmalı ve bitiş tarihi başlangıçtan sonra gelmelidir.');
   const input = parsed.data;
+  const account = input.account;
+  const passwordHashes = new Map<string, string>();
+  for (const user of account?.users ?? []) {
+    if (user.newPassword) passwordHashes.set(user.id, await hashPassword(user.newPassword));
+  }
   await appDataSource.transaction(async manager => {
     const company = await manager.findOne(CompanyEntity, { where: { id: companyId }, lock: { mode: 'pessimistic_write' } });
     if (!company) throw new HttpError(404, 'İşletme veya merkez hesabı bulunamadı.');
+    if (account) {
+      const { branches, users, ...companyFields } = account;
+      await manager.update(CompanyEntity, company.id, companyFields);
+      for (const changes of branches) {
+        const branch = await manager.findOneBy(BranchEntity, { id: changes.id, companyId });
+        if (!branch) throw new HttpError(400, 'Şube seçilen işletmeye ait değil.');
+        if (changes.centerCompanyId && changes.centerCompanyId !== branch.centerCompanyId) {
+          const center = await manager.findOne(CompanyEntity, { where: { id: changes.centerCompanyId, kind: 'center' }, lock: { mode: 'pessimistic_write' } });
+          if (!center) throw new HttpError(404, 'Merkez bulunamadı.');
+          if (center.status === 'passive') throw new HttpError(409, 'Merkez pasif.');
+          const count = await manager.count(BranchEntity, { where: { centerCompanyId: center.id } });
+          if (count >= center.branchLimit) throw new HttpError(409, 'Merkezin şube limiti dolu.');
+        }
+        const { id, ...fields } = changes;
+        if (branch.centerCompanyId !== fields.centerCompanyId) await manager.query('DELETE FROM center_user_branches WHERE branch_id=?', [id]);
+        await manager.update(BranchEntity, id, fields);
+        await recordBranchActivity(manager, id, res.locals.user as UserRow, { kind: 'settings_updated', tone: 'info', title: 'İşletme bilgileri güncellendi', detail: 'Şube bilgileri süper admin tarafından güncellendi.' });
+      }
+      for (const changes of users) {
+        const user = await manager.findOne(UserEntity, { where: { id: changes.id, companyId }, lock: { mode: 'pessimistic_write' } });
+        if (!user || user.role === 'admin') throw new HttpError(400, 'Kullanıcı seçilen müşteri hesabına ait değil.');
+        const { id, newPassword: _password, ...fields } = changes;
+        const passwordHash = passwordHashes.get(id);
+        await manager.update(UserEntity, id, { ...fields, ...(passwordHash ? { passwordHash } : {}) });
+        if (passwordHash || !fields.active) await manager.delete(SessionEntity, { userId: id });
+      }
+    }
     await manager.update(CompanyEntity, company.id, {
       planName: input.planName, licensePrice: input.price.toFixed(2), branchLimit: input.branchLimit,
       billingMethod: input.billingMethod, billingCycle: input.billingCycle, status: input.status,
@@ -148,7 +200,7 @@ adminRouter.post('/centers', asyncRoute(async (req, res) => {
     });
     const user = await manager.save(UserEntity, {
       id: randomUUID(), companyId: company.id, branchId: null, name: input.ownerName,
-      email: input.ownerEmail, username: input.username, passwordHash, role: 'merkez',
+      email: input.ownerEmail, username: input.username, passwordHash, role: 'merkez', centerBranchAccess: 'all',
       title: `${company.name} Patronu`.slice(0, 128), phone: input.ownerPhone, active: true,
     });
     return { companyId: company.id, userId: user.id };
@@ -214,6 +266,7 @@ adminRouter.post('/establishments/:branchId/center', asyncRoute(async (req, res)
     }
     const branch = await manager.findOne(BranchEntity, { where: { id: branchId }, lock: { mode: 'pessimistic_write' } });
     if (!branch) throw new HttpError(404, 'İşletme bulunamadı.');
+    if (branch.centerCompanyId !== centerCompanyId) await manager.query('DELETE FROM center_user_branches WHERE branch_id=?', [branch.id]);
     await manager.update(BranchEntity, branch.id, { centerCompanyId });
   });
   res.json(await bootstrapData(res.locals.user as UserRow));

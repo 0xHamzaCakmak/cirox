@@ -16,6 +16,7 @@
     "db:migrate": "tsx src/scripts/db-migrate.ts",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "test:auth": "tsx --test src/scripts/auth.integration.test.ts",
+    "test:center-users": "tsx --test src/scripts/center-users.integration.test.ts",
     "test:notifications": "tsx --test src/scripts/notifications.integration.test.ts",
     "test:subscriptions": "tsx --test src/scripts/subscription.integration.test.ts",
     "test:admin-finance": "tsx --test src/scripts/admin-finance.integration.test.ts",

@@ -157,6 +157,11 @@ try {
   for (const width of [320, 360, 375, 390, 430, 768, 1024, 1440, 1920]) {
     await page.send('Emulation.setDeviceMetricsOverride', { width, height: width < 768 ? 844 : 1000, deviceScaleFactor: 1, mobile: width < 768 });
     await page.send('Page.navigate', { url: base });
+    await waitFor(`document.querySelector('.branches-page') !== null`, 'initial branches');
+    if (width >= 768) {
+      assert.deepEqual(await page.evaluate(`Array.from(document.querySelectorAll('aside nav button')).slice(0, 2).map(button => button.querySelector('div > span').textContent)`), ['Şubeler', 'Dashboard']);
+    }
+    await clickText(width < 768 ? 'Panel' : 'Dashboard', width < 768 ? '.patron-bottom-nav button' : 'aside nav button');
     await waitFor(`document.querySelector('.center-dashboard-overview') !== null`, 'dashboard'); await delay(400);
     await checkLayout('dashboard', width);
     if (width < 768) {
@@ -232,6 +237,8 @@ try {
   data.dailyRevenueRecords = []; data.expenses = [];
   await page.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 844, deviceScaleFactor: 1, mobile: true });
   await page.send('Page.reload');
+  await waitFor(`document.querySelector('.branches-page') !== null`, 'initial empty branches');
+  await clickText('Panel', '.patron-bottom-nav button');
   await waitFor(`document.querySelector('.patron-dashboard-empty') !== null`, 'empty ledger message');
   assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.patron-dashboard-empty')).display`), 'flex');
   await checkLayout('empty-dashboard', 375); await screenshot('empty-dashboard-375');
@@ -285,13 +292,13 @@ try {
     if (role === 'admin') {
       for (const width of [390, 1280]) {
         await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
-        await waitFor(`!!document.querySelector('button[title="Abonelik Şartlarını Düzenle"]')`, 'license action');
-        await page.evaluate(`document.querySelector('button[title="Abonelik Şartlarını Düzenle"]').click()`); await delay(100);
+        await waitFor(`!!document.querySelector('button[title="Hesap, İşletme ve Lisans Bilgilerini Düzenle"]')`, 'license action');
+        await page.evaluate(`document.querySelector('button[title="Hesap, İşletme ve Lisans Bilgilerini Düzenle"]').click()`); await delay(100);
         assert.ok(await page.evaluate(`!!document.querySelector('#subscription-edit-title') && !document.querySelector('#subscription-edit-title').closest('.fixed')`), 'License editor is a page, not a modal');
         await screenshot(`license-editor-${width}`);
         await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')]; const set=(text,value)=>{const input=labels.find(e=>e.textContent.includes(text)).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));};set('Lisans Başlangıç Tarihi','2090-03-01'); })()`); await delay(100);
         await page.evaluate(`(() => { const labels=[...document.querySelectorAll('label')];const input=labels.find(e=>e.textContent.includes('Bitiş / Yenileme Tarihi')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2090-03-08');input.dispatchEvent(new Event('input',{bubbles:true})); const select=labels.find(e=>e.textContent.includes('Lisans Durumu')).querySelector('select');select.value='trial';select.dispatchEvent(new Event('change',{bubbles:true})); })()`); await delay(100);
-        await clickText('Lisansı Kaydet');
+        await clickText('Tüm Bilgileri Kaydet');
         await waitFor(`!document.querySelector('#subscription-edit-title')`, 'license saved and list restored');
         assert.equal(company.subscription.startDate, '2090-03-01'); assert.equal(company.subscription.nextBillingDate, '2090-03-08'); assert.equal(company.subscription.status, 'trial');
         assert.ok(await page.evaluate(`document.querySelector('main').textContent.includes('Deneme')`));

@@ -53,7 +53,7 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     const centerUser = await appDataSource.getRepository(UserEntity).save({
       id: centerUserId, companyId: centerA, branchId: null, name: 'Test Center User',
       email: `center-${tag}@example.test`, passwordHash: await hashPassword(password),
-      role: 'merkez', title: 'Center', phone: '', active: true,
+      role: 'merkez', title: 'Center', phone: '', active: true, centerBranchAccess: 'all',
     });
     await appDataSource.getRepository(UserEntity).insert({
       id: adminId, companyId: null, branchId: null, name: 'Test Admin',
@@ -282,11 +282,20 @@ test('real login, persistent branch provisioning, tenant isolation and logout', 
     assert.equal(await verifyPassword('ChangedCenter-' + tag, centerStored.passwordHash), true);
     centerCookie = centerRotatedCookie;
     assert.equal((await request('/settings/business', { ...settings, branchId: second.branchId }, independentCookie)).status, 400);
-    const savedSettings = await request('/settings/business', settings, independentCookie); assert.equal(savedSettings.status, 200);
+    const branchSettings = { ...settings, name: 'Güncellenen Şube ' + tag, city: 'Ankara', district: 'Çankaya' };
+    assert.equal((await request('/settings/business', { ...branchSettings, name: ' ' }, independentCookie)).status, 400);
+    assert.equal((await request('/settings/business', { ...branchSettings, name: 'x'.repeat(129) }, independentCookie)).status, 400);
+    assert.equal((await request('/settings/business', { ...branchSettings, centerCompanyId: centerB }, independentCookie)).status, 400);
+    const savedSettings = await request('/settings/business', branchSettings, independentCookie); assert.equal(savedSettings.status, 200);
     const settingsData = await savedSettings.json() as { bootstrap: BootstrapData };
     assert.equal(settingsData.bootstrap.branches[0].legalName, settings.legalName);
+    assert.equal(settingsData.bootstrap.user.branchName, branchSettings.name);
     const reloadedSettings = await request('/auth/me', undefined, independentCookie);
-    assert.equal((await reloadedSettings.json()).branches[0].contactEmail, settings.contactEmail);
+    const reloadedBranch = (await reloadedSettings.json()).branches[0];
+    assert.equal(reloadedBranch.contactEmail, settings.contactEmail);
+    assert.equal(reloadedBranch.name, branchSettings.name);
+    assert.equal(reloadedBranch.city, branchSettings.city);
+    assert.equal(reloadedBranch.district, branchSettings.district);
     assert.equal((await appDataSource.getRepository(BranchEntity).findOneByOrFail({ id: second.branchId })).legalName, '');
     const adminSettings = await request('/settings/business', { ...settings, branchId: second.branchId, legalName: 'Admin Managed Branch' }, adminCookie);
     assert.equal(adminSettings.status, 200, 'super admin may explicitly edit the selected branch');

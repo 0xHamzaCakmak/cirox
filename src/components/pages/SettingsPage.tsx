@@ -30,12 +30,21 @@ export const SettingsPage: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'business' | 'integration' | 'masamqr' | 'users' | 'security'>('business');
 
   // Business settings state
+  const [displayName, setDisplayName] = useState(business?.name || '');
+  const [city, setCity] = useState(branch?.city || '');
+  const [district, setDistrict] = useState(branch?.district || '');
   const [companyName, setCompanyName] = useState(business?.legalName || '');
   const [tradeRegisterNo, setTradeRegisterNo] = useState(business?.tradeRegisterNo || '');
   const [taxOffice, setTaxOffice] = useState(business?.taxOffice || '');
   const [taxNumber, setTaxNumber] = useState(business?.taxNumber || '');
   const [centralEmail, setCentralEmail] = useState(business?.contactEmail || '');
   const [centralPhone, setCentralPhone] = useState(business?.phone || '');
+
+  useEffect(() => {
+    setDisplayName(business?.name || '');
+    setCity(branch?.city || '');
+    setDistrict(branch?.district || '');
+  }, [business?.id, business?.name, branch?.city, branch?.district]);
 
   useEffect(() => {
     setCompanyName(business?.legalName ?? (!isBranch ? company?.name : '') ?? '');
@@ -64,7 +73,7 @@ export const SettingsPage: React.FC = () => {
     if (activeSubTab === 'users' && newPassword !== confirmPassword) { showNotification('Yeni şifreler eşleşmiyor.', 'warning'); return; }
     submitting.current = true; setSaving(true);
     try {
-      if (activeSubTab === 'business') await saveBranchSettings({ legalName: companyName.trim(), tradeRegisterNo: tradeRegisterNo.trim(), taxOffice: taxOffice.trim(), taxNumber: taxNumber.trim(), contactEmail: centralEmail.trim(), phone: centralPhone.trim() });
+      if (activeSubTab === 'business') await saveBranchSettings({ name: displayName.trim(), ...(isBranch ? { city: city.trim(), district: district.trim() } : {}), legalName: companyName.trim(), tradeRegisterNo: tradeRegisterNo.trim(), taxOffice: taxOffice.trim(), taxNumber: taxNumber.trim(), contactEmail: centralEmail.trim(), phone: centralPhone.trim() });
       if (activeSubTab === 'users') {
         await saveOwnProfile({ name: profileName.trim(), username: username.trim().toLowerCase(), email: profileEmail.trim().toLowerCase(), phone: profilePhone.trim(), currentPassword, ...(newPassword ? { newPassword } : {}) });
         setUsername(username.trim().toLowerCase()); setProfileEmail(profileEmail.trim().toLowerCase());
@@ -156,6 +165,36 @@ export const SettingsPage: React.FC = () => {
       {/* Tab Content: Business Information */}
       {activeSubTab === 'business' && (
         <form id="settings-business" onSubmit={handleSave} className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 md:p-6 space-y-5 text-xs">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-100">{isBranch ? 'Şube Bilgileri' : 'İşletme Bilgileri'}</h3>
+            <p className="text-zinc-400 mt-1">Görünen ad menüde ve uygulama genelinde kullanılır.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="business-display-name" className="block text-zinc-400 mb-1 font-medium">Görünen Ad</label>
+              <input id="business-display-name" value={displayName} onChange={event => setDisplayName(event.target.value)} required maxLength={isBranch ? 128 : 255} disabled={!canEdit || saving} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700" />
+            </div>
+            {isBranch && <>
+              <div>
+                <label htmlFor="business-city" className="block text-zinc-400 mb-1 font-medium">İl</label>
+                <input id="business-city" value={city} onChange={event => setCity(event.target.value)} maxLength={64} disabled={!canEdit || saving} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700" />
+              </div>
+              <div>
+                <label htmlFor="business-district" className="block text-zinc-400 mb-1 font-medium">İlçe</label>
+                <input id="business-district" value={district} onChange={event => setDistrict(event.target.value)} maxLength={64} disabled={!canEdit || saving} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-100 focus:outline-none focus:border-zinc-700" />
+              </div>
+              <div>
+                <label htmlFor="business-center" className="block text-zinc-400 mb-1 font-medium">Bağlı Merkez</label>
+                <input id="business-center" value={branch?.centerName || 'Merkez yok'} readOnly className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-400" />
+              </div>
+              <div>
+                <label htmlFor="business-username" className="block text-zinc-400 mb-1 font-medium">Kullanıcı Adı</label>
+                <input id="business-username" value={currentUser?.username || branch?.username || ''} readOnly className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-400" />
+                <button type="button" onClick={() => setActiveSubTab('users')} className="mt-2 text-sky-400 hover:text-sky-300">Kullanıcı Bilgilerim bölümünde düzenle</button>
+              </div>
+            </>}
+          </div>
+          {isBranch && <p className="text-[11px] text-zinc-400">Merkez bağlantısı yönetici tarafından düzenlenir.</p>}
           <h3 className="text-sm font-bold text-zinc-100 pb-3 border-b border-zinc-800">
             Kurumsal ve Vergi Bilgileri
           </h3>

@@ -7,7 +7,7 @@ const access: Record<UserRole, ReadonlySet<PageTab>> = {
   sube: new Set([...shared, 'expense_new', 'expense_camera', 'expense_category_new', 'expense_category_edit', 'staff_new', 'staff_edit', 'staff_payment']),
 };
 export function homePage(role: UserRole): PageTab {
-  return role === 'admin' ? 'admin_tenants' : role === 'merkez' ? 'dashboard' : 'revenue_entry';
+  return role === 'admin' ? 'admin_tenants' : role === 'merkez' ? 'branches' : 'revenue_entry';
 }
 export function resolvePageForRole(role: UserRole | null | undefined, page: PageTab): PageTab | null {
   if (!role || !Object.prototype.hasOwnProperty.call(access, role)) return null;

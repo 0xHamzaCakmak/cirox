@@ -8,7 +8,7 @@ const operationalPages: PageTab[] = ['revenue_entry', 'expenses', 'expense_new',
   'staff', 'staff_new', 'staff_edit', 'staff_history', 'staff_payment', 'reports'];
 
 test('patrons cannot open operational expense, personnel or report pages, including their subpages', () => {
-  for (const page of operationalPages) assert.equal(resolvePageForRole('merkez', page), 'dashboard', page);
+  for (const page of operationalPages) assert.equal(resolvePageForRole('merkez', page), 'branches', page);
 });
 
 test('branch and super admin access to all operational pages remains available', () => {

@@ -1,6 +1,7 @@
 export type UserRole = 'admin' | 'merkez' | 'sube';
 
 export interface User {
+  active?: boolean;
   username?: string | null;
   centerCompanyId?: string | null;
   id: string;
@@ -66,7 +67,13 @@ export interface BankAccount {
 export interface BankAccountInput { bankName: string; accountName: string; iban: string; branchCode: string; currency: 'TRY'; notes: string }
 export interface CollectionOptions { date: string; bankAccountId: string | null; receiptNumber: string; renewLicense: boolean; clientRequestId: string }
 
-export type SubscriptionUpdate = Pick<CompanySubscription, 'planName' | 'price' | 'branchLimit' | 'billingMethod' | 'billingCycle' | 'status' | 'startDate' | 'nextBillingDate'>;
+export interface AdminAccountDetails {
+  name: string; sector: string; ownerName: string; ownerEmail: string; ownerPhone: string; notes: string;
+  legalName: string; tradeRegisterNo: string; taxOffice: string; taxNumber: string; contactEmail: string; phone: string;
+  branches: (BranchSettings & { id: string; name: string; city: string; district: string; managerName: string; status: Branch['status']; centerCompanyId: string | null })[];
+  users: { id: string; name: string; username: string; email: string; phone: string; title: string; active: boolean; newPassword?: string }[];
+}
+export type SubscriptionUpdate = Pick<CompanySubscription, 'planName' | 'price' | 'branchLimit' | 'billingMethod' | 'billingCycle' | 'status' | 'startDate' | 'nextBillingDate'> & { account?: AdminAccountDetails };
 
 export interface Company {
   legalName?: string; tradeRegisterNo?: string; contactEmail?: string; phone?: string;
@@ -122,6 +129,7 @@ export interface SubeSiparisIntegration {
 }
 
 export interface BranchSettings {
+  name?: string; city?: string; district?: string;
   legalName: string; tradeRegisterNo: string; taxOffice: string; taxNumber: string; contactEmail: string; phone: string;
 }
 export interface OwnProfileUpdate {

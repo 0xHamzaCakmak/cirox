@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createApp } from '../app';
 import { appDataSource } from '../database/data-source';
 import { CompanyEntity, UserEntity, BranchEntity, SessionEntity } from '../database/entities';
-import { hashPassword } from '../auth/password';
+import { hashPassword, verifyPassword } from '../auth/password';
 
 test('only super admin can persist future-dated and trial subscriptions without affecting other accounts', async () => {
   await appDataSource.initialize();
@@ -53,6 +53,40 @@ test('only super admin can persist future-dated and trial subscriptions without 
     assert.deepEqual(await appDataSource.getRepository(CompanyEntity).findOneByOrFail({ id: branch.companyId }), unrelatedBefore);
     assert.equal((await request(`/admin/companies/${branch.companyId}/subscription`, { ...input, planName: 'Branch Plan' }, admin)).status, 200);
     assert.equal((await appDataSource.getRepository(CompanyEntity).findOneByOrFail({ id: branch.companyId })).planName, 'Branch Plan');
+    const businessFields = { legalName: 'Test Resmi Unvan', tradeRegisterNo: 'TEST-123', taxOffice: 'Çankaya', taxNumber: '1234567890', contactEmail: `contact-${tag}@example.test`, phone: '05321234567' };
+    const account = {
+      ...businessFields, name: 'Güncel İşletme ' + tag, sector: 'Kafe', ownerName: 'Yeni Yetkili',
+      ownerEmail: `owner-${tag}@example.test`, ownerPhone: '05321112233', notes: 'Admin tarafından güncellendi',
+      branches: [{ ...businessFields, id: branch.branchId, name: 'Yeni Şube Adı', city: 'Ankara', district: 'Çankaya', managerName: 'Yeni Sorumlu', status: 'active', centerCompanyId: center.companyId }],
+      users: [{ id: branch.userId, name: 'Yeni Kullanıcı', username: 'edited' + tag, email: `edited-${tag}@example.test`, phone: '05329876543', title: 'Şube Yetkilisi', active: true, newPassword: 'UpdatedPassword-' + tag }],
+    };
+    const branchUrl = `/admin/companies/${branch.companyId}/subscription`;
+    const before = await appDataSource.getRepository(CompanyEntity).findOneByOrFail({ id: branch.companyId });
+    // Invalid or unrelated targets must roll back the company and license edits too.
+    assert.equal((await request(branchUrl, { ...input, account: { ...account, users: [{ ...account.users[0], id: center.userId }] } }, admin)).status, 400);
+    assert.equal((await request(branchUrl, { ...input, account: { ...account, branches: [{ ...account.branches[0], id: randomUUID() }] } }, admin)).status, 400);
+    assert.equal((await request(branchUrl, { ...input, account: { ...account, users: [{ ...account.users[0], role: 'admin' }] } }, admin)).status, 400);
+    assert.equal((await request(branchUrl, { ...input, account: { ...account, users: [{ ...account.users[0], username: 'licensecenter' + tag }] } }, admin)).status, 409);
+    assert.deepEqual(await appDataSource.getRepository(CompanyEntity).findOneByOrFail({ id: branch.companyId }), before);
+    const edited = await request(branchUrl, { ...input, account }, admin);
+    assert.equal(edited.status, 200);
+    const editedData = (await edited.json()).bootstrap;
+    assert.equal(editedData.companies.find((item: { id: string }) => item.id === branch.companyId).name, account.name);
+    const editedBranch = editedData.branches.find((item: { id: string }) => item.id === branch.branchId);
+    assert.equal(editedBranch.name, 'Yeni Şube Adı'); assert.equal(editedBranch.city, 'Ankara'); assert.equal(editedBranch.district, 'Çankaya');
+    assert.equal(editedBranch.centerCompanyId, center.companyId); assert.equal(editedBranch.legalName, businessFields.legalName);
+    const storedUser = await appDataSource.getRepository(UserEntity).createQueryBuilder('user').addSelect('user.passwordHash').where('user.id=:id', { id: branch.userId }).getOneOrFail();
+    assert.equal(storedUser.username, account.users[0].username); assert.equal(storedUser.name, account.users[0].name);
+    assert.equal(await verifyPassword(account.users[0].newPassword, storedUser.passwordHash), true);
+    assert.equal((await request('/auth/me', undefined, owner)).status, 401, 'password change revokes existing sessions');
+    const relogin = await request('/auth/login', { identifier: account.users[0].username, password: account.users[0].newPassword });
+    assert.equal(relogin.status, 200);
+    assert.equal((await relogin.json()).user.branchName, 'Yeni Şube Adı');
+    const centerAccount = { ...account, name: 'Güncel Merkez', branches: [], users: [{ ...account.users[0], id: center.userId, username: 'editedcenter' + tag, email: `editedcenter-${tag}@example.test`, newPassword: undefined }] };
+    assert.equal((await request(url, { ...input, account: centerAccount }, admin)).status, 200);
+    assert.equal((await appDataSource.getRepository(CompanyEntity).findOneByOrFail({ id: center.companyId })).name, 'Güncel Merkez');
+    const unchangedPassword = await appDataSource.getRepository(UserEntity).createQueryBuilder('user').addSelect('user.passwordHash').where('user.id=:id', { id: center.userId }).getOneOrFail();
+    assert.equal(await verifyPassword(password, unchangedPassword.passwordHash), true, 'blank new password preserves password');
   } finally {
     for (const userId of userIds) { await appDataSource.getRepository(SessionEntity).delete({ userId }); await appDataSource.getRepository(UserEntity).delete(userId); }
     for (const id of branchIds) await appDataSource.getRepository(BranchEntity).delete(id);
